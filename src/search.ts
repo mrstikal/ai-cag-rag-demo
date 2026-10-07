@@ -1,31 +1,55 @@
 import { config } from "./config";
-import { semanticSearch } from "./retrieval";
+import { semanticSearch, type SearchFilters } from "./retrieval";
 
 interface ParsedArgs {
   query: string;
   topK: number;
+  filters: SearchFilters;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
   let topK = config.search.topK;
+  const filters: SearchFilters = {};
   const parts: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+    const next = argv[i + 1];
     if (arg === "--top" || arg === "-k") {
-      const value = argv[i + 1];
-      const parsed = Number(value);
-      if (value === undefined || !Number.isFinite(parsed) || parsed <= 0) {
+      const parsed = Number(next);
+      if (next === undefined || !Number.isFinite(parsed) || parsed <= 0) {
         throw new Error("--top requires a positive integer");
       }
       topK = Math.floor(parsed);
+      i += 1;
+    } else if (arg === "--status") {
+      if (!next) throw new Error("--status requires a value");
+      filters.status = next;
+      i += 1;
+    } else if (arg === "--locale") {
+      if (!next) throw new Error("--locale requires a value");
+      filters.locale = next;
+      i += 1;
+    } else if (arg === "--category") {
+      if (!next) throw new Error("--category requires a value");
+      filters.category = next;
+      i += 1;
+    } else if (arg === "--as-of") {
+      if (!next) throw new Error("--as-of requires an ISO date");
+      filters.asOf = next;
       i += 1;
     } else if (arg !== undefined) {
       parts.push(arg);
     }
   }
 
-  return { query: parts.join(" ").trim(), topK };
+  return { query: parts.join(" ").trim(), topK, filters };
+}
+
+function describeFilters(filters: SearchFilters): string {
+  const entries = Object.entries(filters).filter(([, value]) => value !== undefined);
+  if (entries.length === 0) return "none";
+  return entries.map(([key, value]) => `${key}=${value}`).join("  ");
 }
 
 function stripLeadingHeading(text: string): string {
@@ -41,18 +65,19 @@ function indent(text: string, prefix = "   "): string {
 }
 
 async function main(): Promise<void> {
-  const { query, topK } = parseArgs(process.argv.slice(2));
+  const { query, topK, filters } = parseArgs(process.argv.slice(2));
 
   if (query === "" || query === "--help" || query === "-h") {
-    console.log('Usage: npm run search -- "your question" [--top 5]');
+    console.log('Usage: npm run search -- "your question" [--top 5] [--status active] [--locale cs] [--category billing] [--as-of 2025-06-01]');
     process.exitCode = query === "" ? 1 : 0;
     return;
   }
 
-  const results = await semanticSearch(query, topK);
+  const results = await semanticSearch({ query, limit: topK, filters });
 
   console.log("QUERY");
   console.log(query);
+  console.log(`FILTERS  ${describeFilters(filters)}`);
   console.log("");
   console.log(`RESULTS (${results.length})`);
 

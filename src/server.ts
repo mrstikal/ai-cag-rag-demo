@@ -3,7 +3,7 @@ import http from "node:http";
 import path from "node:path";
 import { config, ROOT_DIR } from "./config";
 import { buildReport, DEFAULT_EVAL_FILE, loadEvalQueries } from "./evaluation";
-import { semanticSearch } from "./retrieval";
+import { semanticSearch, type SearchFilters } from "./retrieval";
 
 const PUBLIC_DIR = path.resolve(ROOT_DIR, "public");
 const MAX_BODY_BYTES = 1_000_000;
@@ -52,6 +52,19 @@ async function serveStatic(res: http.ServerResponse, pathname: string): Promise<
   return true;
 }
 
+function readFilters(body: unknown): SearchFilters | undefined {
+  if (typeof body !== "object" || body === null || !("filters" in body)) return undefined;
+  const raw = (body as { filters?: unknown }).filters;
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const record = raw as Record<string, unknown>;
+  const filters: SearchFilters = {};
+  for (const key of ["status", "locale", "category", "asOf"] as const) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim() !== "") filters[key] = value.trim();
+  }
+  return Object.keys(filters).length > 0 ? filters : undefined;
+}
+
 async function handleSearch(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   let body: unknown;
   try {
@@ -70,11 +83,14 @@ async function handleSearch(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
+  const filters = readFilters(body);
+
   try {
-    const results = await semanticSearch(query, config.search.topK);
+    const results = await semanticSearch({ query, limit: config.search.topK, filters });
     sendJson(res, 200, {
       query: query.trim(),
       provider: config.embeddings.provider,
+      filters: filters ?? null,
       results,
     });
   } catch (error) {

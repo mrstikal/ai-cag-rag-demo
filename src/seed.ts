@@ -11,6 +11,7 @@ import {
   countPoints,
   createClient,
   createCollection,
+  createPayloadIndexes,
   getCollectionVectorSize,
   recreateCollection,
   upsertPoints,
@@ -19,6 +20,12 @@ import {
 } from "./qdrant";
 
 function asString(value: unknown): string | null {
+  // gray-matter/js-yaml parses unquoted YAML dates (2026-01-01) into Date
+  // objects, so normalize those back to an ISO date string.
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
@@ -113,6 +120,10 @@ async function main(): Promise<void> {
   } else {
     await createCollection(client, config.qdrant.collection, embedder.dimensions);
   }
+
+  // Create payload indexes before upserting so ingestion keeps them up to date.
+  console.log("Ensuring payload indexes...");
+  await createPayloadIndexes(client, config.qdrant.collection);
 
   console.log("");
   console.log(`Upserting ${points.length} points...`);

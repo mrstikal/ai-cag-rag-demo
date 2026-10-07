@@ -29,7 +29,7 @@ body {
 
 .app {
   width: 100%;
-  max-width: 760px;
+  max-width: 1760px;
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -281,6 +281,79 @@ body {
 .error {
   color: var(--danger);
   font-weight: 600;
+}
+
+/* --- Search filters ----------------------------------------------------- */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 6px;
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter select,
+.filter input {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+
+.filter select:focus,
+.filter input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47, 109, 246, 0.18);
+}
+
+.applied-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 10px;
+  min-height: 1px;
+  font-size: 12px;
+}
+
+.applied-label {
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.applied-values {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--accent-dark);
+  word-break: break-word;
+}
+
+.eval-filters {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-dark);
+  background: #e7eefc;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.table-scroll {
+  overflow-x: auto;
 }
 
 /* --- Eval tab ----------------------------------------------------------- */

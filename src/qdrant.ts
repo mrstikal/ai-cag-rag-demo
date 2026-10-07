@@ -1,4 +1,4 @@
-import { QdrantClient } from "@qdrant/js-client-rest";
+import { QdrantClient, type Schemas } from "@qdrant/js-client-rest";
 import { config } from "./config";
 
 export interface ChunkPayload {
@@ -61,6 +61,30 @@ export async function createCollection(
   });
 }
 
+/**
+ * Payload indexes for the fields we filter on. Qdrant recommends indexing
+ * filtered fields so the query planner can prune the candidate set before
+ * running the vector comparison.
+ */
+const PAYLOAD_INDEXES: { field: string; schema: "keyword" | "datetime" }[] = [
+  { field: "status", schema: "keyword" },
+  { field: "locale", schema: "keyword" },
+  { field: "category", schema: "keyword" },
+  { field: "document_id", schema: "keyword" },
+  { field: "valid_from", schema: "datetime" },
+  { field: "valid_to", schema: "datetime" },
+];
+
+export async function createPayloadIndexes(client: QdrantClient, name: string): Promise<void> {
+  for (const index of PAYLOAD_INDEXES) {
+    await client.createPayloadIndex(name, {
+      field_name: index.field,
+      field_schema: index.schema,
+      wait: true,
+    });
+  }
+}
+
 export async function recreateCollection(
   client: QdrantClient,
   name: string,
@@ -94,11 +118,13 @@ export async function searchPoints(
   name: string,
   vector: number[],
   limit: number,
+  filter?: Schemas["Filter"],
 ): Promise<SearchHit[]> {
   const response = await client.query(name, {
     query: vector,
     limit,
     with_payload: true,
+    filter,
   });
   return response.points.map((point) => ({
     id: point.id,

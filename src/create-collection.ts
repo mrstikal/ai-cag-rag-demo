@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { config } from "./config";
 import { getEmbedder } from "./embeddings";
-import { collectionExists, createClient, createCollection } from "./qdrant";
+import { collectionExists, createClient, createCollection, createPayloadIndexes } from "./qdrant";
 
 async function main(): Promise<void> {
   const embedder = getEmbedder();
@@ -13,8 +13,9 @@ async function main(): Promise<void> {
   }
 
   await createCollection(client, config.qdrant.collection, embedder.dimensions);
+  await createPayloadIndexes(client, config.qdrant.collection);
   console.log(
-    `Created collection "${config.qdrant.collection}" (size ${embedder.dimensions}, distance Cosine).`,
+    `Created collection "${config.qdrant.collection}" (size ${embedder.dimensions}, distance Cosine) with payload indexes.`,
   );
 }
 

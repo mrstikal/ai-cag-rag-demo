@@ -38,10 +38,46 @@
               &times;
             </button>
           </div>
+
+          <div class="filters">
+            <label class="filter" for="filter-status">
+              Status
+              <select id="filter-status">
+                <option value="">All</option>
+                <option value="active">active</option>
+                <option value="obsolete">obsolete</option>
+              </select>
+            </label>
+            <label class="filter" for="filter-locale">
+              Locale
+              <select id="filter-locale">
+                <option value="">All</option>
+                <option value="en">en</option>
+                <option value="cs">cs</option>
+              </select>
+            </label>
+            <label class="filter" for="filter-category">
+              Category
+              <select id="filter-category">
+                <option value="">All</option>
+                <option value="account">account</option>
+                <option value="billing">billing</option>
+                <option value="developers">developers</option>
+                <option value="data">data</option>
+                <option value="workspace">workspace</option>
+              </select>
+            </label>
+            <label class="filter" for="filter-asof">
+              Valid at
+              <input type="date" id="filter-asof" />
+            </label>
+          </div>
+
           <button type="submit" class="submit" id="submit-btn">Submit your question</button>
         </form>
 
         <div class="answer" id="answer">
+          <div class="applied-filters" id="applied-filters"></div>
           <h2 class="answer-title">Your answer</h2>
           <div class="answer-body" id="answer-body"></div>
         </div>

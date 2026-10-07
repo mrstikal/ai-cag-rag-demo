@@ -1,5 +1,5 @@
 {
-  "description": "Evaluation set for dense retrieval. 'expected' lists the document_id(s) that a correct retrieval should surface; a document hit is any of them in the top-k. 'expectedChunk' is optional and, where set, marks the chunk_index that actually contains the answer (chunk metrics are computed only over those queries).",
+  "description": "Evaluation set for dense retrieval. 'expected' lists the document_id(s) that a correct retrieval should surface; a document hit is any of them in the top-k. 'expectedChunk' is optional and, where set, marks the chunk_index that actually contains the answer (chunk metrics are computed only over those queries). 'filters' is optional metadata; it is ignored in dense mode and applied in Dense + metadata mode.",
   "queries": [
     {
       "id": "q01",
@@ -134,6 +134,37 @@
       "expected": ["sso-saml"],
       "expectedChunk": 1,
       "note": "semantic; no shared wording; answer is 'Enabling SAML SSO'"
+    },
+    {
+      "id": "q21",
+      "query": "What is the refund period?",
+      "expected": ["refunds-2026"],
+      "expectedChunk": 1,
+      "filters": { "status": "active" },
+      "note": "metadata: obsolete policy must not participate"
+    },
+    {
+      "id": "q22",
+      "query": "What was the refund period?",
+      "expected": ["refunds-2025"],
+      "expectedChunk": 1,
+      "filters": { "asOf": "2025-06-01" },
+      "note": "temporal metadata: only documents valid on 2025-06-01 are candidates"
+    },
+    {
+      "id": "q23",
+      "query": "Jak obnovim sve heslo?",
+      "expected": ["password-reset-cs"],
+      "expectedChunk": 1,
+      "filters": { "locale": "cs" },
+      "note": "locale metadata"
+    },
+    {
+      "id": "q24",
+      "query": "How can I authenticate?",
+      "expected": ["api-authentication"],
+      "filters": { "category": "developers" },
+      "note": "ambiguous query constrained by product context (API section)"
     }
   ]
 }

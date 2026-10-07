@@ -2,13 +2,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { config, ROOT_DIR } from "./config";
 import { getEmbedder } from "./embeddings";
-import { semanticSearch } from "./retrieval";
+import { semanticSearch, type SearchFilters } from "./retrieval";
 
 export interface EvalQuery {
   id: string;
   query: string;
   expected: string[];
   expectedChunk?: number;
+  filters?: SearchFilters;
   note?: string;
 }
 
@@ -22,6 +23,7 @@ export interface QueryOutcome {
   query: string;
   expected: string[];
   expectedChunk?: number;
+  filters?: SearchFilters;
   note?: string;
   rank: number | null;
   chunkRank: number | null;
@@ -43,6 +45,12 @@ export interface Metrics {
   chunkMrr: number;
 }
 
+export interface EvalModeResult {
+  applyFilters: boolean;
+  metrics: Metrics;
+  outcomes: QueryOutcome[];
+}
+
 export interface EvalReport {
   file: string;
   provider: string;
@@ -50,8 +58,8 @@ export interface EvalReport {
   dimensions: number;
   topK: number;
   generatedAt: string;
-  metrics: Metrics;
-  outcomes: QueryOutcome[];
+  dense: EvalModeResult;
+  metadata: EvalModeResult;
 }
 
 export const DEFAULT_EVAL_FILE = path.join(ROOT_DIR, "eval", "queries.json");
@@ -68,10 +76,15 @@ export async function loadEvalQueries(file: string = DEFAULT_EVAL_FILE): Promise
 export async function runEvaluation(
   queries: EvalQuery[],
   topK: number = config.search.topK,
+  applyFilters = false,
 ): Promise<QueryOutcome[]> {
   const outcomes: QueryOutcome[] = [];
   for (const item of queries) {
-    const hits = await semanticSearch(item.query, topK);
+    const hits = await semanticSearch({
+      query: item.query,
+      limit: topK,
+      filters: applyFilters ? item.filters : undefined,
+    });
     const index = hits.findIndex((hit) => item.expected.includes(hit.documentId));
     let chunkRank: number | null = null;
     if (typeof item.expectedChunk === "number") {
@@ -85,6 +98,7 @@ export async function runEvaluation(
       query: item.query,
       expected: item.expected,
       expectedChunk: item.expectedChunk,
+      filters: item.filters,
       note: item.note,
       rank: index === -1 ? null : index + 1,
       chunkRank,
@@ -164,7 +178,9 @@ export async function buildReport(
 ): Promise<EvalReport> {
   const embedder = getEmbedder();
   const queries = await loadEvalQueries(file);
-  const outcomes = await runEvaluation(queries, topK);
+
+  const denseOutcomes = await runEvaluation(queries, topK, false);
+  const metadataOutcomes = await runEvaluation(queries, topK, true);
 
   return {
     file,
@@ -173,7 +189,15 @@ export async function buildReport(
     dimensions: embedder.dimensions,
     topK,
     generatedAt: new Date().toISOString(),
-    metrics: computeMetrics(outcomes, topK),
-    outcomes,
+    dense: {
+      applyFilters: false,
+      metrics: computeMetrics(denseOutcomes, topK),
+      outcomes: denseOutcomes,
+    },
+    metadata: {
+      applyFilters: true,
+      metrics: computeMetrics(metadataOutcomes, topK),
+      outcomes: metadataOutcomes,
+    },
   };
 }
