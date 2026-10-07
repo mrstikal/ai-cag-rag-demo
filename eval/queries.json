@@ -1,77 +1,87 @@
 {
-  "description": "Step 1 dense-retrieval eval set. 'expected' lists the document_id(s) that a correct retrieval should surface; a query is a hit if any of them appears in the top-k.",
+  "description": "Evaluation set for dense retrieval. 'expected' lists the document_id(s) that a correct retrieval should surface; a document hit is any of them in the top-k. 'expectedChunk' is optional and, where set, marks the chunk_index that actually contains the answer (chunk metrics are computed only over those queries).",
   "queries": [
     {
       "id": "q01",
       "query": "I lost my phone and cannot log in",
       "expected": ["two-factor-auth"],
-      "note": "semantic: query shares almost no wording with the recovery section"
+      "expectedChunk": 4,
+      "note": "semantic: no shared wording; answer is the 'Recovering access' section"
     },
     {
       "id": "q02",
       "query": "How do I set up an authenticator app for my account?",
       "expected": ["two-factor-auth"],
-      "note": "semantic"
+      "expectedChunk": 2,
+      "note": "semantic; answer is 'Authenticator apps'"
     },
     {
       "id": "q03",
       "query": "I forgot my password",
       "expected": ["password-reset"],
-      "note": "semantic, short"
+      "expectedChunk": 1,
+      "note": "doc hit can come from the title-only chunk 0; the real answer is chunk 1"
     },
     {
       "id": "q04",
       "query": "Jak obnovim sve heslo?",
       "expected": ["password-reset-cs", "password-reset"],
-      "note": "locale trap: Czech query; no metadata filtering yet, English doc is acceptable"
+      "note": "locale trap: Czech query; no metadata filtering yet, English doc is acceptable. No chunk expectation (two documents allowed)."
     },
     {
       "id": "q05",
       "query": "I cannot get into my account",
       "expected": ["account-recovery", "account-locked"],
-      "note": "ambiguous: recovery or lockout"
+      "note": "ambiguous: recovery or lockout. No chunk expectation."
     },
     {
       "id": "q06",
       "query": "Why has my account been suspended?",
       "expected": ["account-suspension"],
-      "note": "same vocabulary as account-locked but different meaning"
+      "expectedChunk": 1,
+      "note": "answer is 'Reasons for suspension'"
     },
     {
       "id": "q07",
       "query": "My account was locked after too many failed login attempts",
       "expected": ["account-locked"],
-      "note": "trap: account-locked vs account-suspension"
+      "expectedChunk": 1,
+      "note": "trap: account-locked vs account-suspension; answer is 'Why accounts get locked'"
     },
     {
       "id": "q08",
       "query": "What does ERR-B04 mean?",
       "expected": ["api-errors"],
-      "note": "exact identifier; kept for BM25/hybrid comparison"
+      "expectedChunk": 2,
+      "note": "exact identifier; answer is 'Common error codes'. Kept for BM25/hybrid comparison"
     },
     {
       "id": "q09",
       "query": "What is ERR-A17?",
       "expected": ["api-errors"],
-      "note": "exact identifier"
+      "expectedChunk": 2,
+      "note": "exact identifier; answer is 'Common error codes'"
     },
     {
       "id": "q10",
       "query": "ERR-C91 workspace does not exist",
       "expected": ["api-errors"],
-      "note": "exact identifier"
+      "expectedChunk": 2,
+      "note": "exact identifier; answer is 'Common error codes'. Current dense-only miss"
     },
     {
       "id": "q11",
       "query": "How many days do I have to request a refund after the initial purchase?",
       "expected": ["refunds-2026"],
-      "note": "trap: active policy must beat obsolete refunds-2025"
+      "expectedChunk": 1,
+      "note": "trap: active policy must beat obsolete refunds-2025; answer is 'Eligibility'"
     },
     {
       "id": "q12",
       "query": "Does the 2025 refund policy allow 30 days?",
       "expected": ["refunds-2025"],
-      "note": "trap: explicitly asks about the obsolete policy"
+      "expectedChunk": 1,
+      "note": "trap: explicitly asks about the obsolete policy; answer is 'Eligibility'"
     },
     {
       "id": "q13",
@@ -101,25 +111,29 @@
       "id": "q17",
       "query": "How do I verify that a webhook really came from DemoDesk?",
       "expected": ["webhook-signatures"],
-      "note": "semantic; overlaps with webhooks"
+      "expectedChunk": 1,
+      "note": "semantic; answer is 'Verifying signatures'"
     },
     {
       "id": "q18",
       "query": "What is the API rate limit for my plan?",
       "expected": ["api-rate-limits"],
-      "note": "semantic/lexical"
+      "expectedChunk": 1,
+      "note": "answer is 'Default limits per plan'"
     },
     {
       "id": "q19",
       "query": "What permissions do workspace members have?",
       "expected": ["workspace-roles"],
-      "note": "trap: workspace-roles vs workspace-members share vocabulary"
+      "expectedChunk": 1,
+      "note": "trap: workspace-roles vs workspace-members; answer is 'Available roles'"
     },
     {
       "id": "q20",
       "query": "Can we sign in through our company identity provider?",
       "expected": ["sso-saml"],
-      "note": "semantic; no shared wording with SAML/SSO"
+      "expectedChunk": 1,
+      "note": "semantic; no shared wording; answer is 'Enabling SAML SSO'"
     }
   ]
 }

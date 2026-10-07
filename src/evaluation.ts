@@ -8,6 +8,7 @@ export interface EvalQuery {
   id: string;
   query: string;
   expected: string[];
+  expectedChunk?: number;
   note?: string;
 }
 
@@ -20,8 +21,10 @@ export interface QueryOutcome {
   id: string;
   query: string;
   expected: string[];
+  expectedChunk?: number;
   note?: string;
   rank: number | null;
+  chunkRank: number | null;
   results: { documentId: string; score: number; chunkIndex: number }[];
 }
 
@@ -32,6 +35,12 @@ export interface Metrics {
   hitAt3: number;
   hitAt5: number;
   mrr: number;
+  chunkQueries: number;
+  chunkFound: number;
+  chunkHitAt1: number;
+  chunkHitAt3: number;
+  chunkHitAt5: number;
+  chunkMrr: number;
 }
 
 export interface EvalReport {
@@ -64,12 +73,21 @@ export async function runEvaluation(
   for (const item of queries) {
     const hits = await semanticSearch(item.query, topK);
     const index = hits.findIndex((hit) => item.expected.includes(hit.documentId));
+    let chunkRank: number | null = null;
+    if (typeof item.expectedChunk === "number") {
+      const chunkIndex = hits.findIndex(
+        (hit) => item.expected.includes(hit.documentId) && hit.chunkIndex === item.expectedChunk,
+      );
+      chunkRank = chunkIndex === -1 ? null : chunkIndex + 1;
+    }
     outcomes.push({
       id: item.id,
       query: item.query,
       expected: item.expected,
+      expectedChunk: item.expectedChunk,
       note: item.note,
       rank: index === -1 ? null : index + 1,
+      chunkRank,
       results: hits.map((hit) => ({
         documentId: hit.documentId,
         score: hit.score,
@@ -80,9 +98,20 @@ export async function runEvaluation(
   return outcomes;
 }
 
-export function computeMetrics(outcomes: QueryOutcome[], topK: number): Metrics {
-  const queries = outcomes.length;
-  const ranks = outcomes.map((outcome) => outcome.rank);
+interface RankMetrics {
+  queries: number;
+  found: number;
+  hitAt1: number;
+  hitAt3: number;
+  hitAt5: number;
+  mrr: number;
+}
+
+function metricsFromRanks(ranks: (number | null)[], topK: number): RankMetrics {
+  const queries = ranks.length;
+  if (queries === 0) {
+    return { queries: 0, found: 0, hitAt1: 0, hitAt3: 0, hitAt5: 0, mrr: 0 };
+  }
   const hitAt = (threshold: number): number =>
     topK < threshold ? 0 : ranks.filter((rank) => rank !== null && rank <= threshold).length / queries;
 
@@ -98,6 +127,34 @@ export function computeMetrics(outcomes: QueryOutcome[], topK: number): Metrics 
     hitAt3: hitAt(3),
     hitAt5: hitAt(5),
     mrr: reciprocalRankSum / queries,
+  };
+}
+
+export function computeMetrics(outcomes: QueryOutcome[], topK: number): Metrics {
+  const documents = metricsFromRanks(
+    outcomes.map((outcome) => outcome.rank),
+    topK,
+  );
+  // Chunk metrics only cover queries that declare an expectedChunk.
+  const chunkSubset = outcomes.filter((outcome) => typeof outcome.expectedChunk === "number");
+  const chunks = metricsFromRanks(
+    chunkSubset.map((outcome) => outcome.chunkRank),
+    topK,
+  );
+
+  return {
+    queries: documents.queries,
+    found: documents.found,
+    hitAt1: documents.hitAt1,
+    hitAt3: documents.hitAt3,
+    hitAt5: documents.hitAt5,
+    mrr: documents.mrr,
+    chunkQueries: chunks.queries,
+    chunkFound: chunks.found,
+    chunkHitAt1: chunks.hitAt1,
+    chunkHitAt3: chunks.hitAt3,
+    chunkHitAt5: chunks.hitAt5,
+    chunkMrr: chunks.mrr,
   };
 }
 

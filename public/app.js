@@ -199,34 +199,53 @@
     return card;
   }
 
+  function metricGroup(label, cards) {
+    var group = document.createElement("div");
+    group.className = "metric-group";
+    group.appendChild(element("div", "metric-group-label", label));
+    var row = document.createElement("div");
+    row.className = "metrics";
+    cards.forEach(function (card) {
+      row.appendChild(card);
+    });
+    group.appendChild(row);
+    return group;
+  }
+
   function renderEvalReport(report) {
     evalResultsBody.replaceChildren();
 
     var metrics = report.metrics;
-    var cards = document.createElement("div");
-    cards.className = "metrics";
-    if (report.topK >= 1) cards.appendChild(metricCard("Hit@1", percent(metrics.hitAt1)));
-    if (report.topK >= 3) cards.appendChild(metricCard("Hit@3", percent(metrics.hitAt3)));
-    if (report.topK >= 5) cards.appendChild(metricCard("Hit@5", percent(metrics.hitAt5)));
-    cards.appendChild(metricCard("MRR@" + report.topK, metrics.mrr.toFixed(3)));
-    cards.appendChild(
-      metricCard("Found", metrics.found + "/" + metrics.queries, "top-" + report.topK),
-    );
-    evalResultsBody.appendChild(cards);
+
+    var docCards = [];
+    if (report.topK >= 1) docCards.push(metricCard("Hit@1", percent(metrics.hitAt1)));
+    if (report.topK >= 3) docCards.push(metricCard("Hit@3", percent(metrics.hitAt3)));
+    if (report.topK >= 5) docCards.push(metricCard("Hit@5", percent(metrics.hitAt5)));
+    docCards.push(metricCard("MRR@" + report.topK, metrics.mrr.toFixed(3)));
+    docCards.push(metricCard("Found", metrics.found + "/" + metrics.queries, "top-" + report.topK));
+    evalResultsBody.appendChild(metricGroup("Document hit", docCards));
+
+    if (metrics.chunkQueries > 0) {
+      var chunkCards = [];
+      if (report.topK >= 1) chunkCards.push(metricCard("Hit@1", percent(metrics.chunkHitAt1)));
+      if (report.topK >= 3) chunkCards.push(metricCard("Hit@3", percent(metrics.chunkHitAt3)));
+      if (report.topK >= 5) chunkCards.push(metricCard("Hit@5", percent(metrics.chunkHitAt5)));
+      chunkCards.push(metricCard("MRR@" + report.topK, metrics.chunkMrr.toFixed(3)));
+      chunkCards.push(
+        metricCard("Found", metrics.chunkFound + "/" + metrics.chunkQueries, "of " + metrics.chunkQueries + " queries"),
+      );
+      evalResultsBody.appendChild(metricGroup("Chunk hit (expectedChunk only)", chunkCards));
+    }
 
     evalResultsBody.appendChild(
-      element(
-        "p",
-        "eval-meta",
-        report.provider + " / " + report.model + " \u00b7 k=" + report.topK,
-      ),
+      element("p", "eval-meta", report.provider + " / " + report.model + " \u00b7 k=" + report.topK),
     );
 
     var table = document.createElement("table");
     table.className = "eval-table";
     var thead = document.createElement("thead");
     var headRow = document.createElement("tr");
-    ["id", "rank", "query", "expected", "top result"].forEach(function (label) {
+    ["id", "doc", "chunk", "query", "expected", "top result"].forEach(function (label) {
       headRow.appendChild(element("th", null, label));
     });
     thead.appendChild(headRow);
@@ -238,12 +257,22 @@
       if (outcome.rank === null) row.className = "is-miss";
 
       row.appendChild(element("td", "cell-id", outcome.id));
+      row.appendChild(element("td", "cell-rank", outcome.rank === null ? "MISS" : "#" + outcome.rank));
 
-      var rankCell = element("td", "cell-rank", outcome.rank === null ? "MISS" : "#" + outcome.rank);
-      row.appendChild(rankCell);
+      var chunkCell;
+      if (outcome.expectedChunk === undefined) {
+        chunkCell = element("td", "cell-chunk", "\u2013");
+      } else if (outcome.chunkRank === null) {
+        chunkCell = element("td", "cell-chunk is-miss", "MISS");
+      } else {
+        chunkCell = element("td", "cell-chunk", "#" + outcome.chunkRank);
+      }
+      row.appendChild(chunkCell);
 
       row.appendChild(element("td", "cell-query", outcome.query));
-      row.appendChild(element("td", "cell-expected", outcome.expected.join(", ")));
+      var expectedText = outcome.expected.join(", ");
+      if (outcome.expectedChunk !== undefined) expectedText += " \u00b7 chunk " + outcome.expectedChunk;
+      row.appendChild(element("td", "cell-expected", expectedText));
 
       var top = outcome.results[0];
       var topText = top
