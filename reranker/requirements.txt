@@ -1,0 +1,4 @@
+# CPU-only torch is smaller; install it from the PyTorch CPU index first:
+#   python3 -m pip install --user torch --index-url https://download.pytorch.org/whl/cpu
+#   python3 -m pip install --user -r reranker/requirements.txt
+sentence-transformers>=3.0

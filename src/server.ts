@@ -88,10 +88,10 @@ async function handleSearch(req: http.IncomingMessage, res: http.ServerResponse)
   let retriever: Retriever = "dense";
   if (typeof body === "object" && body !== null && "retriever" in body) {
     const raw = (body as { retriever?: unknown }).retriever;
-    if (raw === "dense" || raw === "bm25" || raw === "hybrid") {
+    if (raw === "dense" || raw === "bm25" || raw === "hybrid" || raw === "rerank") {
       retriever = raw;
     } else if (raw !== undefined && raw !== null && raw !== "") {
-      sendJson(res, 400, { error: 'retriever must be "dense", "bm25" or "hybrid"' });
+      sendJson(res, 400, { error: 'retriever must be "dense", "bm25", "hybrid" or "rerank"' });
       return;
     }
   }

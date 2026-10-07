@@ -23,6 +23,7 @@ function readNumber(name: string, fallback: number): number {
 }
 
 export type EmbeddingsProvider = "openai" | "mock";
+export type RerankerProvider = "local" | "voyage" | "cohere" | "fallback";
 
 export interface AppConfig {
   embeddings: {
@@ -46,6 +47,23 @@ export interface AppConfig {
   eval: {
     candidateDepth: number;
   };
+  reranker: {
+    provider: RerankerProvider;
+    url: string | undefined;
+    model: string;
+    candidates: number;
+    timeoutMs: number;
+    voyage: {
+      apiKey: string | undefined;
+      baseUrl: string;
+      model: string;
+    };
+    cohere: {
+      apiKey: string | undefined;
+      baseUrl: string;
+      model: string;
+    };
+  };
   server: {
     port: number;
   };
@@ -55,6 +73,12 @@ function readProvider(): EmbeddingsProvider {
   const raw = readString("EMBEDDINGS_PROVIDER", "openai").toLowerCase();
   if (raw === "mock" || raw === "openai") return raw;
   throw new Error(`Unknown EMBEDDINGS_PROVIDER "${raw}". Use "openai" or "mock".`);
+}
+
+function readRerankerProvider(): RerankerProvider {
+  const raw = readString("RERANKER_PROVIDER", "local").toLowerCase();
+  if (raw === "local" || raw === "voyage" || raw === "cohere" || raw === "fallback") return raw;
+  throw new Error(`Unknown RERANKER_PROVIDER "${raw}". Use "local", "voyage", "cohere" or "fallback".`);
 }
 
 export const config: AppConfig = {
@@ -78,6 +102,23 @@ export const config: AppConfig = {
   },
   eval: {
     candidateDepth: readNumber("EVAL_CANDIDATE_DEPTH", 20),
+  },
+  reranker: {
+    provider: readRerankerProvider(),
+    url: readOptionalString("RERANKER_URL"),
+    model: readString("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"),
+    candidates: readNumber("RERANK_CANDIDATES", 20),
+    timeoutMs: readNumber("RERANK_TIMEOUT_MS", 120000),
+    voyage: {
+      apiKey: readOptionalString("VOYAGE_API_KEY"),
+      baseUrl: readString("VOYAGE_BASE_URL", "https://api.voyageai.com"),
+      model: readString("VOYAGE_RERANK_MODEL", "rerank-3-lite"),
+    },
+    cohere: {
+      apiKey: readOptionalString("COHERE_API_KEY"),
+      baseUrl: readString("COHERE_BASE_URL", "https://api.cohere.com"),
+      model: readString("COHERE_RERANK_MODEL", "rerank-v4.0-fast"),
+    },
   },
   server: {
     port: readNumber("PORT", 3000),

@@ -236,6 +236,8 @@
     { key: "bm25Metadata", label: "BM25+meta" },
     { key: "hybrid", label: "Hybrid" },
     { key: "hybridMetadata", label: "Hybrid+meta" },
+    { key: "rerank", label: "Rerank" },
+    { key: "rerankMetadata", label: "Rerank+meta" },
   ];
 
   function buildMetricsTable(report) {
@@ -376,7 +378,11 @@
           " \u00b7 k=" +
           report.topK +
           " \u00b7 candidates=" +
-          report.candidateDepth,
+          report.candidateDepth +
+          " \u00b7 reranker: " +
+          report.reranker.provider +
+          " / " +
+          report.reranker.model,
       ),
     );
     evalResultsBody.appendChild(tableView("Metrics", buildMetricsTable(report)));

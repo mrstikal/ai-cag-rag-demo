@@ -3,6 +3,7 @@ import path from "node:path";
 import { config, ROOT_DIR } from "./config";
 import { getEmbedder } from "./embeddings";
 import { search, type Retriever, type SearchFilters } from "./retrieval";
+import { rerankerInfo, type RerankerInfo } from "./reranker";
 
 export interface EvalQuery {
   id: string;
@@ -63,6 +64,8 @@ export interface EvalModes {
   bm25Metadata: EvalModeResult;
   hybrid: EvalModeResult;
   hybridMetadata: EvalModeResult;
+  rerank: EvalModeResult;
+  rerankMetadata: EvalModeResult;
 }
 
 export interface EvalReport {
@@ -70,6 +73,7 @@ export interface EvalReport {
   provider: string;
   model: string;
   dimensions: number;
+  reranker: RerankerInfo;
   topK: number;
   candidateDepth: number;
   generatedAt: string;
@@ -222,6 +226,7 @@ export async function buildReport(
     provider: embedder.provider,
     model: embedder.model,
     dimensions: embedder.dimensions,
+    reranker: rerankerInfo(),
     topK: k,
     candidateDepth: depth,
     generatedAt: new Date().toISOString(),
@@ -232,6 +237,8 @@ export async function buildReport(
       bm25Metadata: await run("bm25", true),
       hybrid: await run("hybrid", false),
       hybridMetadata: await run("hybrid", true),
+      rerank: await run("rerank", false),
+      rerankMetadata: await run("rerank", true),
     },
   };
 }

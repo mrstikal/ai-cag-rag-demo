@@ -25,8 +25,8 @@ function parseArgs(argv: string[]): ParsedArgs {
       topK = Math.floor(parsed);
       i += 1;
     } else if (arg === "--retriever") {
-      if (next !== "dense" && next !== "bm25" && next !== "hybrid") {
-        throw new Error('--retriever must be "dense", "bm25" or "hybrid"');
+      if (next !== "dense" && next !== "bm25" && next !== "hybrid" && next !== "rerank") {
+        throw new Error('--retriever must be "dense", "bm25", "hybrid" or "rerank"');
       }
       retriever = next;
       i += 1;
@@ -76,7 +76,7 @@ async function main(): Promise<void> {
   const { query, topK, filters, retriever } = parseArgs(process.argv.slice(2));
 
   if (query === "" || query === "--help" || query === "-h") {
-    console.log('Usage: npm run search -- "your question" [--retriever dense|bm25|hybrid] [--top 5] [--status active] [--locale cs] [--category billing] [--as-of 2025-06-01]');
+    console.log('Usage: npm run search -- "your question" [--retriever dense|bm25|hybrid|rerank] [--top 5] [--status active] [--locale cs] [--category billing] [--as-of 2025-06-01]');
     process.exitCode = query === "" ? 1 : 0;
     return;
   }

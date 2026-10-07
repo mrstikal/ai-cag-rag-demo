@@ -80,6 +80,8 @@ function modeColumns(report: EvalReport): { label: string; mode: EvalModeResult 
     { label: "BM25+meta", mode: report.modes.bm25Metadata },
     { label: "Hybrid", mode: report.modes.hybrid },
     { label: "Hybrid+meta", mode: report.modes.hybridMetadata },
+    { label: "Rerank", mode: report.modes.rerank },
+    { label: "Rerank+meta", mode: report.modes.rerankMetadata },
   ];
 }
 
@@ -154,6 +156,7 @@ function printReport(report: EvalReport): void {
   console.log(`Provider:   ${report.provider} / ${report.model}`);
   console.log(`final k:    ${report.topK}`);
   console.log(`candidates: ${report.candidateDepth} (rank tables show rank within the candidate pool)`);
+  console.log(`reranker:   ${report.reranker.provider} / ${report.reranker.model}`);
 
   console.log("");
   console.log("DOCUMENT rank (rank of expected document, '-' = miss)");
@@ -169,6 +172,8 @@ function printReport(report: EvalReport): void {
   printModeSummary("BM25 + METADATA", report.modes.bm25Metadata.metrics, report.topK);
   printModeSummary("HYBRID (RRF 1:1)", report.modes.hybrid.metrics, report.topK);
   printModeSummary("HYBRID + METADATA", report.modes.hybridMetadata.metrics, report.topK);
+  printModeSummary("RERANK (dense ∪ bm25 -> cross-encoder)", report.modes.rerank.metrics, report.topK);
+  printModeSummary("RERANK + METADATA", report.modes.rerankMetadata.metrics, report.topK);
 
   printMisses("Dense", report.modes.dense.outcomes);
   printMisses("Dense + metadata", report.modes.denseMetadata.outcomes);
@@ -176,6 +181,8 @@ function printReport(report: EvalReport): void {
   printMisses("BM25 + metadata", report.modes.bm25Metadata.outcomes);
   printMisses("Hybrid", report.modes.hybrid.outcomes);
   printMisses("Hybrid + metadata", report.modes.hybridMetadata.outcomes);
+  printMisses("Rerank", report.modes.rerank.outcomes);
+  printMisses("Rerank + metadata", report.modes.rerankMetadata.outcomes);
 }
 
 async function main(): Promise<void> {
