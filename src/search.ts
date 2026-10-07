@@ -1,6 +1,5 @@
 import { config } from "./config";
-import { getEmbedder } from "./embeddings";
-import { createClient, searchPoints, type ChunkPayload } from "./qdrant";
+import { semanticSearch } from "./retrieval";
 
 interface ParsedArgs {
   query: string;
@@ -29,18 +28,16 @@ function parseArgs(argv: string[]): ParsedArgs {
   return { query: parts.join(" ").trim(), topK };
 }
 
+function stripLeadingHeading(text: string): string {
+  const stripped = text.replace(/^#{1,6}\s+.*\n?/, "").trim();
+  return stripped !== "" ? stripped : text.trim();
+}
+
 function indent(text: string, prefix = "   "): string {
   return text
     .split("\n")
     .map((line) => `${prefix}${line}`)
     .join("\n");
-}
-
-function bodyText(payload: ChunkPayload): string {
-  const marker = `## ${payload.section}`;
-  const text = payload.text.trim();
-  const withoutHeading = text.startsWith(marker) ? text.slice(marker.length).trim() : text;
-  return withoutHeading.replace(/\s+/g, " ").trim();
 }
 
 async function main(): Promise<void> {
@@ -52,35 +49,27 @@ async function main(): Promise<void> {
     return;
   }
 
-  const embedder = getEmbedder();
-  const client = createClient();
-
-  const [vector] = await embedder.embed([query]);
-  if (!vector) throw new Error("Failed to embed the query");
-
-  const hits = await searchPoints(client, config.qdrant.collection, vector, topK);
+  const results = await semanticSearch(query, topK);
 
   console.log("QUERY");
   console.log(query);
   console.log("");
-  console.log(`RESULTS (${hits.length})`);
+  console.log(`RESULTS (${results.length})`);
 
-  if (hits.length === 0) {
+  if (results.length === 0) {
     console.log("");
     console.log("  No matches. Did you run `npm run seed`?");
     return;
   }
 
-  hits.forEach((hit, index) => {
-    const payload = hit.payload;
+  results.forEach((result, index) => {
     console.log("");
-    console.log(`${index + 1}. score: ${hit.score.toFixed(4)}`);
-    console.log(`   document: ${payload.document_id}`);
-    console.log(`   section:  ${payload.section}`);
-    console.log(`   status:   ${payload.status}   category: ${payload.category}   locale: ${payload.locale}`);
-    console.log(`   chunk:    ${payload.chunk_id}`);
+    console.log(`${index + 1}. score: ${result.score.toFixed(4)}`);
+    console.log(`   title:    ${result.title}`);
+    console.log(`   document: ${result.documentId} · chunk ${result.chunkIndex}`);
+    console.log(`   status:   ${result.status}   category: ${result.category ?? "-"}   locale: ${result.locale ?? "-"}`);
     console.log("   text:");
-    console.log(indent(bodyText(payload)));
+    console.log(indent(stripLeadingHeading(result.text)));
   });
 }
 
@@ -88,7 +77,7 @@ main().catch((error) => {
   console.error("");
   console.error("Search failed:", error instanceof Error ? error.message : error);
   if (config.embeddings.provider === "openai") {
-    console.error("If you do not have an OpenAI key, set EMBEDDINGS_PROVIDER=mock in .env.");
+    console.error("If the OpenAI key or network is unavailable, set EMBEDDINGS_PROVIDER=mock in .env.");
   }
   process.exitCode = 1;
 });

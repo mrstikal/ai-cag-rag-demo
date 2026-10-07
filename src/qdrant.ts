@@ -1,7 +1,25 @@
-import { createHash } from "node:crypto";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { config } from "./config";
-import type { Chunk } from "./chunker";
+
+export interface ChunkPayload {
+  document_id: string;
+  chunk_index: number;
+  title: string;
+  category: string | null;
+  locale: string | null;
+  status: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  tags: string[];
+  source_file: string;
+  text: string;
+}
+
+export interface Point {
+  id: string;
+  vector: number[];
+  payload: ChunkPayload;
+}
 
 export interface SearchHit {
   id: string | number;
@@ -9,40 +27,8 @@ export interface SearchHit {
   payload: ChunkPayload;
 }
 
-export interface ChunkPayload {
-  chunk_id: string;
-  document_id: string;
-  chunk_index: number;
-  title: string;
-  category: string;
-  locale: string;
-  status: string;
-  valid_from: string | null;
-  valid_to: string | null;
-  tags: string[];
-  section: string;
-  text: string;
-  tokens: number;
-}
-
 export function createClient(): QdrantClient {
   return new QdrantClient({ url: config.qdrant.url });
-}
-
-/**
- * Qdrant point IDs must be uint64 or UUID. We derive a stable UUID from the
- * human-readable chunk id (e.g. "refunds-2026:2") so re-seeding overwrites
- * the same points instead of duplicating them.
- */
-export function pointIdFor(documentId: string, chunkIndex: number): string {
-  const digest = createHash("sha1").update(`${documentId}:${chunkIndex}`).digest();
-  const bytes = Buffer.from(digest.subarray(0, 16));
-  const byte6 = bytes[6] ?? 0;
-  const byte8 = bytes[8] ?? 0;
-  bytes[6] = (byte6 & 0x0f) | 0x50;
-  bytes[8] = (byte8 & 0x3f) | 0x80;
-  const hex = bytes.toString("hex");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
 export async function collectionExists(client: QdrantClient, name: string): Promise<boolean> {
@@ -86,42 +72,20 @@ export async function recreateCollection(
   await createCollection(client, name, dimensions);
 }
 
-export async function upsertChunks(
+export async function upsertPoints(
   client: QdrantClient,
   name: string,
-  chunks: Chunk[],
-  vectors: number[][],
+  points: Point[],
 ): Promise<void> {
-  if (chunks.length !== vectors.length) {
-    throw new Error(`Chunk/vector mismatch: ${chunks.length} chunks vs ${vectors.length} vectors`);
-  }
   const batchSize = 128;
-  for (let start = 0; start < chunks.length; start += batchSize) {
-    const points = chunks.slice(start, start + batchSize).map((chunk, offset) => {
-      const vector = vectors[start + offset];
-      if (!vector) throw new Error(`Missing vector for ${chunk.chunkId}`);
-      const payload: ChunkPayload = {
-        chunk_id: chunk.chunkId,
-        document_id: chunk.documentId,
-        chunk_index: chunk.chunkIndex,
-        title: chunk.title,
-        category: chunk.category,
-        locale: chunk.locale,
-        status: chunk.status,
-        valid_from: chunk.validFrom ?? null,
-        valid_to: chunk.validTo ?? null,
-        tags: chunk.tags,
-        section: chunk.section,
-        text: chunk.text,
-        tokens: chunk.tokens,
-      };
-      return {
-        id: pointIdFor(chunk.documentId, chunk.chunkIndex),
-        vector,
-        payload: payload as unknown as Record<string, unknown>,
-      };
-    });
-    await client.upsert(name, { wait: true, points });
+  for (let start = 0; start < points.length; start += batchSize) {
+    const batch = points.slice(start, start + batchSize).map((point) => ({
+      id: point.id,
+      vector: point.vector,
+      payload: point.payload as unknown as Record<string, unknown>,
+    }));
+    // Upsert overwrites a point with the same id, so re-seeding is idempotent.
+    await client.upsert(name, { wait: true, points: batch });
   }
 }
 

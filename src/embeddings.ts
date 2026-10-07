@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import OpenAI from "openai";
 import { config } from "./config";
 
@@ -20,7 +19,7 @@ class OpenAIEmbedder implements Embedder {
   constructor() {
     if (!config.embeddings.apiKey) {
       throw new Error(
-        "OPENAI_API_KEY is not set. Add it to .env or set EMBEDDINGS_PROVIDER=mock to run without embeddings API.",
+        "OPENAI_API_KEY is not set. Add it to .env or set EMBEDDINGS_PROVIDER=mock to run without the embeddings API.",
       );
     }
     this.model = config.embeddings.model;
@@ -67,7 +66,7 @@ function fnv1a(input: string): number {
  * Deterministic, dependency-free embedder used for offline demos and tests.
  * It hashes tokens into a fixed-size bag-of-words vector, so cosine
  * similarity is a rough lexical match. It proves the pipeline end to end
- * without requiring an embeddings API key. It is NOT a semantic model.
+ * without an embeddings API key. It is NOT a semantic model.
  */
 class MockEmbedder implements Embedder {
   readonly provider = "mock";
@@ -96,16 +95,28 @@ class MockEmbedder implements Embedder {
   }
 }
 
-export function getEmbedder(): Embedder {
+function create(): Embedder {
   if (config.embeddings.provider === "mock") {
     return new MockEmbedder(config.embeddings.dimensions);
   }
   return new OpenAIEmbedder();
 }
 
-export function vectorFingerprint(vector: number[]): string {
-  return createHash("sha1")
-    .update(vector.map((value) => value.toFixed(6)).join(","))
-    .digest("hex")
-    .slice(0, 12);
+let cached: Embedder | undefined;
+
+export function getEmbedder(): Embedder {
+  if (!cached) cached = create();
+  return cached;
+}
+
+/** Embed a single text (used for the query). */
+export async function embedText(text: string): Promise<number[]> {
+  const [vector] = await getEmbedder().embed([text]);
+  if (!vector) throw new Error("The embedding provider returned no vector");
+  return vector;
+}
+
+/** Embed a batch of texts (used when seeding documents). */
+export async function embedTexts(texts: string[]): Promise<number[][]> {
+  return getEmbedder().embed(texts);
 }

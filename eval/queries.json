@@ -1,0 +1,125 @@
+{
+  "description": "Step 1 dense-retrieval eval set. 'expected' lists the document_id(s) that a correct retrieval should surface; a query is a hit if any of them appears in the top-k.",
+  "queries": [
+    {
+      "id": "q01",
+      "query": "I lost my phone and cannot log in",
+      "expected": ["two-factor-auth"],
+      "note": "semantic: query shares almost no wording with the recovery section"
+    },
+    {
+      "id": "q02",
+      "query": "How do I set up an authenticator app for my account?",
+      "expected": ["two-factor-auth"],
+      "note": "semantic"
+    },
+    {
+      "id": "q03",
+      "query": "I forgot my password",
+      "expected": ["password-reset"],
+      "note": "semantic, short"
+    },
+    {
+      "id": "q04",
+      "query": "Jak obnovim sve heslo?",
+      "expected": ["password-reset-cs", "password-reset"],
+      "note": "locale trap: Czech query; no metadata filtering yet, English doc is acceptable"
+    },
+    {
+      "id": "q05",
+      "query": "I cannot get into my account",
+      "expected": ["account-recovery", "account-locked"],
+      "note": "ambiguous: recovery or lockout"
+    },
+    {
+      "id": "q06",
+      "query": "Why has my account been suspended?",
+      "expected": ["account-suspension"],
+      "note": "same vocabulary as account-locked but different meaning"
+    },
+    {
+      "id": "q07",
+      "query": "My account was locked after too many failed login attempts",
+      "expected": ["account-locked"],
+      "note": "trap: account-locked vs account-suspension"
+    },
+    {
+      "id": "q08",
+      "query": "What does ERR-B04 mean?",
+      "expected": ["api-errors"],
+      "note": "exact identifier; kept for BM25/hybrid comparison"
+    },
+    {
+      "id": "q09",
+      "query": "What is ERR-A17?",
+      "expected": ["api-errors"],
+      "note": "exact identifier"
+    },
+    {
+      "id": "q10",
+      "query": "ERR-C91 workspace does not exist",
+      "expected": ["api-errors"],
+      "note": "exact identifier"
+    },
+    {
+      "id": "q11",
+      "query": "How many days do I have to request a refund after the initial purchase?",
+      "expected": ["refunds-2026"],
+      "note": "trap: active policy must beat obsolete refunds-2025"
+    },
+    {
+      "id": "q12",
+      "query": "Does the 2025 refund policy allow 30 days?",
+      "expected": ["refunds-2025"],
+      "note": "trap: explicitly asks about the obsolete policy"
+    },
+    {
+      "id": "q13",
+      "query": "How do I cancel my subscription?",
+      "expected": ["cancellations"],
+      "note": "semantic"
+    },
+    {
+      "id": "q14",
+      "query": "Where can I download my invoices as PDF?",
+      "expected": ["invoices"],
+      "note": "semantic"
+    },
+    {
+      "id": "q15",
+      "query": "I need a copy of all the data in my account",
+      "expected": ["data-export"],
+      "note": "semantic; overlaps with gdpr and account-deletion"
+    },
+    {
+      "id": "q16",
+      "query": "How do I permanently delete my account?",
+      "expected": ["account-deletion"],
+      "note": "semantic; overlaps with data-retention and gdpr"
+    },
+    {
+      "id": "q17",
+      "query": "How do I verify that a webhook really came from DemoDesk?",
+      "expected": ["webhook-signatures"],
+      "note": "semantic; overlaps with webhooks"
+    },
+    {
+      "id": "q18",
+      "query": "What is the API rate limit for my plan?",
+      "expected": ["api-rate-limits"],
+      "note": "semantic/lexical"
+    },
+    {
+      "id": "q19",
+      "query": "What permissions do workspace members have?",
+      "expected": ["workspace-roles"],
+      "note": "trap: workspace-roles vs workspace-members share vocabulary"
+    },
+    {
+      "id": "q20",
+      "query": "Can we sign in through our company identity provider?",
+      "expected": ["sso-saml"],
+      "note": "semantic; no shared wording with SAML/SSO"
+    }
+  ]
+}

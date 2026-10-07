@@ -39,13 +39,11 @@ export interface AppConfig {
   kb: {
     sourceDir: string;
   };
-  chunking: {
-    targetTokens: number;
-    maxTokens: number;
-    overlapTokens: number;
-  };
   search: {
     topK: number;
+  };
+  server: {
+    port: number;
   };
 }
 
@@ -70,12 +68,10 @@ export const config: AppConfig = {
   kb: {
     sourceDir: path.resolve(ROOT_DIR, readString("KB_SOURCE_DIR", "kb/source")),
   },
-  chunking: {
-    targetTokens: readNumber("CHUNK_TARGET_TOKENS", 500),
-    maxTokens: readNumber("CHUNK_MAX_TOKENS", 600),
-    overlapTokens: readNumber("CHUNK_OVERLAP_TOKENS", 75),
-  },
   search: {
     topK: readNumber("SEARCH_TOP_K", 5),
+  },
+  server: {
+    port: readNumber("PORT", 3000),
   },
 };

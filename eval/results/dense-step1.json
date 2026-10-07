@@ -1,0 +1,740 @@
+{
+  "file": "/home/alex/rag-demo/eval/queries.json",
+  "provider": "openai",
+  "model": "text-embedding-3-small",
+  "dimensions": 1536,
+  "topK": 5,
+  "generatedAt": "2026-10-07T14:18:57.541Z",
+  "metrics": {
+    "queries": 20,
+    "found": 19,
+    "hitAt1": 0.8,
+    "hitAt3": 0.9,
+    "hitAt5": 0.95,
+    "mrr": 0.8625
+  },
+  "outcomes": [
+    {
+      "id": "q01",
+      "query": "I lost my phone and cannot log in",
+      "expected": [
+        "two-factor-auth"
+      ],
+      "note": "semantic: query shares almost no wording with the recovery section",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "two-factor-auth",
+          "score": 0.4557971,
+          "chunkIndex": 4
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.41370198,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.41130233,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.4049664,
+          "chunkIndex": 3
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.3655063,
+          "chunkIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "q02",
+      "query": "How do I set up an authenticator app for my account?",
+      "expected": [
+        "two-factor-auth"
+      ],
+      "note": "semantic",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "two-factor-auth",
+          "score": 0.6415373,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "two-factor-auth",
+          "score": 0.5500812,
+          "chunkIndex": 4
+        },
+        {
+          "documentId": "two-factor-auth",
+          "score": 0.5414932,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "two-factor-auth",
+          "score": 0.45597887,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.42251232,
+          "chunkIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "q03",
+      "query": "I forgot my password",
+      "expected": [
+        "password-reset"
+      ],
+      "note": "semantic, short",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "password-reset",
+          "score": 0.5736756,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.47905168,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "password-reset",
+          "score": 0.46525934,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.4639309,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "password-reset",
+          "score": 0.44734272,
+          "chunkIndex": 3
+        }
+      ]
+    },
+    {
+      "id": "q04",
+      "query": "Jak obnovim sve heslo?",
+      "expected": [
+        "password-reset-cs",
+        "password-reset"
+      ],
+      "note": "locale trap: Czech query; no metadata filtering yet, English doc is acceptable",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "password-reset-cs",
+          "score": 0.5902213,
+          "chunkIndex": 3
+        },
+        {
+          "documentId": "password-reset-cs",
+          "score": 0.5732886,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "password-reset-cs",
+          "score": 0.49020308,
+          "chunkIndex": 4
+        },
+        {
+          "documentId": "password-reset-cs",
+          "score": 0.48064432,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "password-reset",
+          "score": 0.44226244,
+          "chunkIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "q05",
+      "query": "I cannot get into my account",
+      "expected": [
+        "account-recovery",
+        "account-locked"
+      ],
+      "note": "ambiguous: recovery or lockout",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "account-recovery",
+          "score": 0.4591645,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.4069525,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "account-create",
+          "score": 0.4045749,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.40196967,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.38714767,
+          "chunkIndex": 3
+        }
+      ]
+    },
+    {
+      "id": "q06",
+      "query": "Why has my account been suspended?",
+      "expected": [
+        "account-suspension"
+      ],
+      "note": "same vocabulary as account-locked but different meaning",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "account-suspension",
+          "score": 0.6900263,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "account-suspension",
+          "score": 0.5628022,
+          "chunkIndex": 3
+        },
+        {
+          "documentId": "account-suspension",
+          "score": 0.54425174,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "account-suspension",
+          "score": 0.41984093,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "account-locked",
+          "score": 0.36618406,
+          "chunkIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "q07",
+      "query": "My account was locked after too many failed login attempts",
+      "expected": [
+        "account-locked"
+      ],
+      "note": "trap: account-locked vs account-suspension",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "account-locked",
+          "score": 0.58417374,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "account-locked",
+          "score": 0.5211109,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "account-locked",
+          "score": 0.43932027,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "account-recovery",
+          "score": 0.434174,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "account-suspension",
+          "score": 0.42860016,
+          "chunkIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "q08",
+      "query": "What does ERR-B04 mean?",
+      "expected": [
+        "api-errors"
+      ],
+      "note": "exact identifier; kept for BM25/hybrid comparison",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "api-errors",
+          "score": 0.5007587,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "api-rate-limits",
+          "score": 0.4513446,
+          "chunkIndex": 3
+        },
+        {
+          "documentId": "api-status-codes",
+          "score": 0.41657275,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "api-errors",
+          "score": 0.35851574,
+          "chunkIndex": 3
+        },
+        {
+          "documentId": "api-errors",
+          "score": 0.35209852,
+          "chunkIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "q09",
+      "query": "What is ERR-A17?",
+      "expected": [
+        "api-errors"
+      ],
+      "note": "exact identifier",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "api-errors",
+          "score": 0.494643,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "api-errors",
+          "score": 0.42050847,
+          "chunkIndex": 3
+        },
+        {
+          "documentId": "api-errors",
+          "score": 0.34494418,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "api-rate-limits",
+          "score": 0.3429744,
+          "chunkIndex": 3
+        },
+        {
+          "documentId": "api-status-codes",
+          "score": 0.3332057,
+          "chunkIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "q10",
+      "query": "ERR-C91 workspace does not exist",
+      "expected": [
+        "api-errors"
+      ],
+      "note": "exact identifier",
+      "rank": null,
+      "results": [
+        {
+          "documentId": "workspace-create",
+          "score": 0.6005618,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "workspace-members",
+          "score": 0.53855264,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "workspace-roles",
+          "score": 0.4991566,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "workspace-transfer",
+          "score": 0.48699203,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "data-residency",
+          "score": 0.43711174,
+          "chunkIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "q11",
+      "query": "How many days do I have to request a refund after the initial purchase?",
+      "expected": [
+        "refunds-2026"
+      ],
+      "note": "trap: active policy must beat obsolete refunds-2025",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "refunds-2026",
+          "score": 0.7191235,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "refunds-2025",
+          "score": 0.68029934,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "refunds-2026",
+          "score": 0.56849164,
+          "chunkIndex": 3
+        },
+        {
+          "documentId": "refunds-2025",
+          "score": 0.5509398,
+          "chunkIndex": 4
+        },
+        {
+          "documentId": "refunds-2026",
+          "score": 0.5494622,
+          "chunkIndex": 4
+        }
+      ]
+    },
+    {
+      "id": "q12",
+      "query": "Does the 2025 refund policy allow 30 days?",
+      "expected": [
+        "refunds-2025"
+      ],
+      "note": "trap: explicitly asks about the obsolete policy",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "refunds-2025",
+          "score": 0.6311741,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "refunds-2025",
+          "score": 0.62375736,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "refunds-2026",
+          "score": 0.5702975,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "refunds-2026",
+          "score": 0.5451447,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "refunds-2025",
+          "score": 0.50467056,
+          "chunkIndex": 4
+        }
+      ]
+    },
+    {
+      "id": "q13",
+      "query": "How do I cancel my subscription?",
+      "expected": [
+        "cancellations"
+      ],
+      "note": "semantic",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "cancellations",
+          "score": 0.794097,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "cancellations",
+          "score": 0.5538897,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "refunds-2025",
+          "score": 0.52165383,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "refunds-2026",
+          "score": 0.48506355,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "account-deletion",
+          "score": 0.41869494,
+          "chunkIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "q14",
+      "query": "Where can I download my invoices as PDF?",
+      "expected": [
+        "invoices"
+      ],
+      "note": "semantic",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "invoices",
+          "score": 0.70320094,
+          "chunkIndex": 3
+        },
+        {
+          "documentId": "invoices",
+          "score": 0.52478236,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "invoices",
+          "score": 0.50835085,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "invoices",
+          "score": 0.40398458,
+          "chunkIndex": 4
+        },
+        {
+          "documentId": "refunds-2026",
+          "score": 0.36620224,
+          "chunkIndex": 3
+        }
+      ]
+    },
+    {
+      "id": "q15",
+      "query": "I need a copy of all the data in my account",
+      "expected": [
+        "data-export"
+      ],
+      "note": "semantic; overlaps with gdpr and account-deletion",
+      "rank": 4,
+      "results": [
+        {
+          "documentId": "account-recovery",
+          "score": 0.43958205,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "gdpr",
+          "score": 0.43652806,
+          "chunkIndex": 4
+        },
+        {
+          "documentId": "account-deletion",
+          "score": 0.38729396,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "data-export",
+          "score": 0.37240285,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "account-create",
+          "score": 0.36052868,
+          "chunkIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "q16",
+      "query": "How do I permanently delete my account?",
+      "expected": [
+        "account-deletion"
+      ],
+      "note": "semantic; overlaps with data-retention and gdpr",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "account-deletion",
+          "score": 0.5362529,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "account-deletion",
+          "score": 0.5124185,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "account-deletion",
+          "score": 0.50486994,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "account-create",
+          "score": 0.49600342,
+          "chunkIndex": 4
+        },
+        {
+          "documentId": "data-retention",
+          "score": 0.457478,
+          "chunkIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "q17",
+      "query": "How do I verify that a webhook really came from DemoDesk?",
+      "expected": [
+        "webhook-signatures"
+      ],
+      "note": "semantic; overlaps with webhooks",
+      "rank": 2,
+      "results": [
+        {
+          "documentId": "webhooks",
+          "score": 0.6620482,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "webhook-signatures",
+          "score": 0.655393,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "account-create",
+          "score": 0.6287602,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "webhook-signatures",
+          "score": 0.5525023,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "webhooks-debugging",
+          "score": 0.52028215,
+          "chunkIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "q18",
+      "query": "What is the API rate limit for my plan?",
+      "expected": [
+        "api-rate-limits"
+      ],
+      "note": "semantic/lexical",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "api-rate-limits",
+          "score": 0.7542802,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "api-rate-limits",
+          "score": 0.5457716,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "api-rate-limits",
+          "score": 0.51462734,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "api-versioning",
+          "score": 0.4237864,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "api-authentication",
+          "score": 0.39241654,
+          "chunkIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "q19",
+      "query": "What permissions do workspace members have?",
+      "expected": [
+        "workspace-roles"
+      ],
+      "note": "trap: workspace-roles vs workspace-members share vocabulary",
+      "rank": 1,
+      "results": [
+        {
+          "documentId": "workspace-roles",
+          "score": 0.77107745,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "workspace-members",
+          "score": 0.73402154,
+          "chunkIndex": 0
+        },
+        {
+          "documentId": "workspace-roles",
+          "score": 0.6619329,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "workspace-roles",
+          "score": 0.61928475,
+          "chunkIndex": 3
+        },
+        {
+          "documentId": "workspace-transfer",
+          "score": 0.59902954,
+          "chunkIndex": 0
+        }
+      ]
+    },
+    {
+      "id": "q20",
+      "query": "Can we sign in through our company identity provider?",
+      "expected": [
+        "sso-saml"
+      ],
+      "note": "semantic; no shared wording with SAML/SSO",
+      "rank": 2,
+      "results": [
+        {
+          "documentId": "scim-provisioning",
+          "score": 0.53000885,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "sso-saml",
+          "score": 0.5162821,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "sso-saml",
+          "score": 0.5108728,
+          "chunkIndex": 1
+        },
+        {
+          "documentId": "plans-enterprise",
+          "score": 0.49897268,
+          "chunkIndex": 2
+        },
+        {
+          "documentId": "scim-provisioning",
+          "score": 0.4263857,
+          "chunkIndex": 1
+        }
+      ]
+    }
+  ]
+}
