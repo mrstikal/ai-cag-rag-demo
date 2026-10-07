@@ -3,6 +3,7 @@ import { config } from "./config";
 
 export interface ChunkPayload {
   document_id: string;
+  document_version: string;
   chunk_index: number;
   title: string;
   category: string | null;
@@ -12,6 +13,8 @@ export interface ChunkPayload {
   valid_to: string | null;
   tags: string[];
   source_file: string;
+  source_uri: string;
+  updated_at: string;
   text: string;
 }
 

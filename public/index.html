@@ -9,20 +9,49 @@
   </head>
   <body>
     <div class="app">
+      <div class="app-intro">
+        <h1 class="app-title">RAG Demo</h1>
+        <p class="app-subtitle">
+          Each tab exposes one stage of the pipeline, so you can see what retrieval and generation actually do — and
+          where they fail.
+        </p>
+        <ul class="tab-legend">
+          <li>
+            <strong>Search</strong> — retrieval only. Dense (cosine), BM25, hybrid RRF, or Voyage reranking over the
+            knowledge base. Shows the ranked chunks, scores, and (for rerank) the dense/BM25 ranks. No LLM.
+          </li>
+          <li>
+            <strong>Answer</strong> — one grounded RAG pass: the reranked top 5 chunks → LLM (structured output) →
+            answer with validated <code>[S#]</code> citations and the source list.
+          </li>
+          <li>
+            <strong>Agentic</strong> — like Answer, but the model may call <code>search_kb</code> (bounded) when the
+            sources are insufficient; shows the retrieval trace.
+          </li>
+          <li>
+            <strong>Eval</strong> — evaluation sets. Retrieval: Hit@k, Recall@k, MRR per retriever, plus recall of the
+            expected chunk. Generation: answerable/unanswerable accuracy, citation validity, expected source hit.
+          </li>
+        </ul>
+      </div>
+
       <nav class="tabs" role="tablist" aria-label="Sections">
         <button class="tab is-active" type="button" role="tab" data-tab="search" aria-selected="true">
           Search
         </button>
+        <button class="tab" type="button" role="tab" data-tab="answer" aria-selected="false">
+          Answer
+        </button>
+        <button class="tab" type="button" role="tab" data-tab="agentic" aria-selected="false">
+          Agentic
+        </button>
         <button class="tab" type="button" role="tab" data-tab="eval" aria-selected="false">
           Eval
-        </button>
-        <button class="tab" type="button" role="tab" data-tab="settings" aria-selected="false">
-          Settings
         </button>
       </nav>
 
       <section class="panel is-active" id="panel-search" role="tabpanel" aria-labelledby="tab-search">
-        <h1 class="page-title">RAG DEMO</h1>
+        <h1 class="page-title">Search</h1>
 
         <form id="search-form" class="search-form" autocomplete="off">
           <label class="field-label" for="question">Type your question</label>
@@ -92,6 +121,34 @@
         </div>
       </section>
 
+      <section class="panel" id="panel-answer" role="tabpanel" hidden>
+        <h1 class="page-title">Answer</h1>
+
+        <form id="answer-form" class="search-form" autocomplete="off">
+          <label class="field-label" for="answer-question">Type your question</label>
+          <div class="input-wrap">
+            <input
+              id="answer-question"
+              name="answer-question"
+              type="text"
+              placeholder="e.g. I lost my phone and cannot log in"
+            />
+            <button type="button" class="clear-input" id="answer-clear" aria-label="Clear question" hidden>
+              &times;
+            </button>
+          </div>
+          <button type="submit" class="submit" id="answer-submit">Get answer</button>
+        </form>
+
+        <div class="answer" id="answer-panel">
+          <div class="applied-filters" id="answer-meta"></div>
+          <h2 class="answer-title">Your answer</h2>
+          <div class="answer-body" id="answer-tab-body"></div>
+          <h3 class="section-title" id="answer-sources-title" hidden>Sources</h3>
+          <div id="answer-sources"></div>
+        </div>
+      </section>
+
       <section class="panel" id="panel-eval" role="tabpanel" hidden>
         <h1 class="page-title">Eval</h1>
 
@@ -110,15 +167,49 @@
           </div>
         </div>
 
-        <h2 class="section-title">Eval set queries</h2>
+        <div class="eval-toolbar">
+          <button type="button" class="submit" id="gen-eval-run">Run generation eval</button>
+        </div>
+        <div class="answer eval-results" id="gen-eval-results">
+          <h2 class="answer-title">Grounded answers &amp; citations</h2>
+          <div class="answer-body" id="gen-eval-body">
+            <p class="state">Not run yet.</p>
+          </div>
+        </div>
+
+        <h2 class="section-title">Retrieval eval set queries</h2>
         <div class="eval-queries" id="eval-queries">
           <p class="state">Loading…</p>
         </div>
       </section>
 
-      <section class="panel" id="panel-settings" role="tabpanel" hidden>
-        <h1 class="page-title">Settings</h1>
-        <p class="muted">Coming soon.</p>
+      <section class="panel" id="panel-agentic" role="tabpanel" hidden>
+        <h1 class="page-title">Agentic answer</h1>
+
+        <form id="agentic-form" class="search-form" autocomplete="off">
+          <label class="field-label" for="agentic-question">Type your question</label>
+          <div class="input-wrap">
+            <input
+              id="agentic-question"
+              name="agentic-question"
+              type="text"
+              placeholder="e.g. I lost my authenticator and my recovery codes"
+            />
+            <button type="button" class="clear-input" id="agentic-clear" aria-label="Clear question" hidden>
+              &times;
+            </button>
+          </div>
+          <button type="submit" class="submit" id="agentic-submit">Get agentic answer</button>
+        </form>
+
+        <div class="answer" id="agentic-panel">
+          <div class="applied-filters" id="agentic-meta"></div>
+          <h2 class="answer-title">Your answer</h2>
+          <div class="answer-body" id="agentic-body"></div>
+          <div id="agentic-trace"></div>
+          <h3 class="section-title" id="agentic-sources-title" hidden>Sources</h3>
+          <div id="agentic-sources"></div>
+        </div>
       </section>
     </div>
 

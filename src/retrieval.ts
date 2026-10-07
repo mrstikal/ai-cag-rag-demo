@@ -31,14 +31,17 @@ export interface SearchResult {
   id: string | number;
   score: number;
   documentId: string;
-  title: string;
+  documentVersion: string;
   chunkIndex: number;
+  title: string;
   category: string | null;
   locale: string | null;
   status: string;
   validFrom: string | null;
   validTo: string | null;
   sourceFile: string;
+  sourceUri: string;
+  updatedAt: string;
   text: string;
   /** rerank retriever only */
   rerankScore?: number;
@@ -90,14 +93,17 @@ function mapHit(hit: SearchHit, extras: Partial<SearchResult> = {}): SearchResul
     id: hit.id,
     score: hit.score,
     documentId: hit.payload.document_id,
-    title: hit.payload.title,
+    documentVersion: hit.payload.document_version,
     chunkIndex: hit.payload.chunk_index,
+    title: hit.payload.title,
     category: hit.payload.category,
     locale: hit.payload.locale,
     status: hit.payload.status,
     validFrom: hit.payload.valid_from,
     validTo: hit.payload.valid_to,
     sourceFile: hit.payload.source_file,
+    sourceUri: hit.payload.source_uri,
+    updatedAt: hit.payload.updated_at,
     text: hit.payload.text,
     ...extras,
   };

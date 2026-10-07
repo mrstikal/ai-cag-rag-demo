@@ -8,6 +8,7 @@
     "seed": "tsx src/seed.ts",
     "search": "tsx src/search.ts",
     "eval": "tsx src/evaluate.ts",
+    "eval:gen": "tsx src/evaluate-generation.ts",
     "create-collection": "tsx src/create-collection.ts",
     "web": "tsx src/server.ts",
     "typecheck": "tsc --noEmit"

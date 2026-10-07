@@ -2,7 +2,10 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { config, ROOT_DIR } from "./config";
+import { answerQuestionAgentic } from "./agent";
 import { buildReport, DEFAULT_EVAL_FILE, loadEvalQueries } from "./evaluation";
+import { answerQuestion, type ContextSource } from "./generation";
+import { DEFAULT_GEN_FILE, loadGenerationQuestions, runGenerationEval } from "./generation-eval";
 import { search, type Retriever, type SearchFilters } from "./retrieval";
 
 const PUBLIC_DIR = path.resolve(ROOT_DIR, "public");
@@ -149,11 +152,134 @@ async function handleEval(req: http.IncomingMessage, res: http.ServerResponse): 
   }
 }
 
+function mapSources(sources: ContextSource[]) {
+  return sources.map((source) => ({
+    sourceId: source.sourceId,
+    citation: `${source.chunk.documentId}:v${source.chunk.documentVersion}:chunk-${source.chunk.chunkIndex}`,
+    documentId: source.chunk.documentId,
+    documentVersion: source.chunk.documentVersion,
+    chunkIndex: source.chunk.chunkIndex,
+    title: source.chunk.title,
+    status: source.chunk.status,
+    sourceUri: source.chunk.sourceUri,
+    updatedAt: source.chunk.updatedAt,
+    rerankScore: source.chunk.rerankScore ?? null,
+    text: source.chunk.text,
+  }));
+}
+
+async function handleAnswer(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  let body: unknown;
+  try {
+    body = await readJsonBody(req);
+  } catch (error) {
+    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid JSON body" });
+    return;
+  }
+
+  const query =
+    typeof body === "object" && body !== null && "query" in body
+      ? (body as { query?: unknown }).query
+      : undefined;
+  if (typeof query !== "string" || query.trim() === "") {
+    sendJson(res, 400, { error: "Query is required" });
+    return;
+  }
+
+  const filters = readFilters(body);
+
+  try {
+    const result = await answerQuestion(query, { filters });
+    sendJson(res, 200, {
+      query: query.trim(),
+      status: result.status,
+      answer: result.answer,
+      citations: result.citations,
+      model: result.model,
+      sources: mapSources(result.sources),
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : "Answer failed" });
+  }
+}
+
+async function handleAgentic(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  let body: unknown;
+  try {
+    body = await readJsonBody(req);
+  } catch (error) {
+    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid JSON body" });
+    return;
+  }
+
+  const query =
+    typeof body === "object" && body !== null && "query" in body
+      ? (body as { query?: unknown }).query
+      : undefined;
+  if (typeof query !== "string" || query.trim() === "") {
+    sendJson(res, 400, { error: "Query is required" });
+    return;
+  }
+
+  const filters = readFilters(body);
+  const forceSearch =
+    typeof body === "object" &&
+    body !== null &&
+    "forceSearch" in body &&
+    (body as { forceSearch?: unknown }).forceSearch === true;
+
+  try {
+    const result = await answerQuestionAgentic(query, { filters, forceSearch });
+    sendJson(res, 200, {
+      query: query.trim(),
+      status: result.status,
+      answer: result.answer,
+      citations: result.citations,
+      model: result.model,
+      searches: result.searches,
+      initialChunks: result.initialChunks,
+      uniqueChunks: result.uniqueChunks,
+      maxExtraSearches: result.maxExtraSearches,
+      sources: mapSources(result.sources),
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : "Agentic answer failed" });
+  }
+}
+
+async function handleGenerationQueries(res: http.ServerResponse): Promise<void> {
+  try {
+    const questions = await loadGenerationQuestions();
+    sendJson(res, 200, { questions });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : "Failed to load questions" });
+  }
+}
+
+async function handleGenerationEval(res: http.ServerResponse): Promise<void> {
+  try {
+    const report = await runGenerationEval(DEFAULT_GEN_FILE);
+    sendJson(res, 200, report);
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : "Generation eval failed" });
+  }
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
   if (req.method === "POST" && url.pathname === "/api/search") {
     void handleSearch(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/answer") {
+    void handleAnswer(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/agentic") {
+    void handleAgentic(req, res);
     return;
   }
 
@@ -164,6 +290,16 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "POST" && url.pathname === "/api/eval") {
     void handleEval(req, res);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/generation/queries") {
+    void handleGenerationQueries(res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/generation/eval") {
+    void handleGenerationEval(res);
     return;
   }
 

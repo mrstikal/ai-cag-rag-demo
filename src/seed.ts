@@ -66,9 +66,14 @@ async function main(): Promise<void> {
 
   for (const filename of files) {
     try {
-      const raw = await fs.readFile(path.join(config.kb.sourceDir, filename), "utf8");
+      const filePath = path.join(config.kb.sourceDir, filename);
+      const raw = await fs.readFile(filePath, "utf8");
+      const stats = await fs.stat(filePath);
       const { data, content } = matter(raw);
       const documentId = asString(data.id) ?? path.basename(filename, ".md");
+      const documentVersion = asString(data.version) ?? "1";
+      const sourceUri = `kb/source/${filename}`;
+      const updatedAt = stats.mtime.toISOString();
 
       const chunks = chunkMarkdown(content);
       if (chunks.length === 0) {
@@ -84,6 +89,7 @@ async function main(): Promise<void> {
         if (!vector) throw new Error(`missing embedding for chunk ${chunk.index}`);
         const payload: ChunkPayload = {
           document_id: documentId,
+          document_version: documentVersion,
           chunk_index: chunk.index,
           title: asString(data.title) ?? documentId,
           category: asString(data.category),
@@ -93,6 +99,8 @@ async function main(): Promise<void> {
           valid_to: asString(data.valid_to),
           tags: asStringList(data.tags),
           source_file: filename,
+          source_uri: sourceUri,
+          updated_at: updatedAt,
           text: chunk.text,
         };
         points.push({

@@ -1,0 +1,81 @@
+{
+  "description": "Generation eval: grounded answers + validated citations. Answerable questions must be answered and cite the expected sources; unanswerable questions must return status=insufficient.",
+  "questions": [
+    {
+      "id": "g01",
+      "question": "What does ERR-C91 mean?",
+      "answerable": true,
+      "expectedFacts": ["workspace does not exist"],
+      "expectedSources": ["api-errors"]
+    },
+    {
+      "id": "g02",
+      "question": "How many days do I have to request a refund after the initial purchase?",
+      "answerable": true,
+      "expectedFacts": ["14 days"],
+      "expectedSources": ["refunds-2026"]
+    },
+    {
+      "id": "g03",
+      "question": "I lost my phone and cannot log in. What should I do?",
+      "answerable": true,
+      "expectedFacts": ["backup code", "support"],
+      "expectedSources": ["two-factor-auth"]
+    },
+    {
+      "id": "g04",
+      "question": "What refund window applied to a purchase made in 2025?",
+      "answerable": true,
+      "expectedFacts": ["30 days"],
+      "expectedSources": ["refunds-2025"]
+    },
+    {
+      "id": "g05",
+      "question": "How do I cancel my subscription?",
+      "answerable": true,
+      "expectedFacts": ["cancel"],
+      "expectedSources": ["cancellations"]
+    },
+    {
+      "id": "g06",
+      "question": "How do I verify that a webhook really came from DemoDesk?",
+      "answerable": true,
+      "expectedFacts": ["signature"],
+      "expectedSources": ["webhook-signatures"]
+    },
+    {
+      "id": "g07",
+      "question": "How do I set up an authenticator app?",
+      "answerable": true,
+      "expectedFacts": ["authenticator"],
+      "expectedSources": ["two-factor-auth"]
+    },
+    {
+      "id": "g08",
+      "question": "Can we sign in through our company identity provider?",
+      "answerable": true,
+      "expectedFacts": ["SAML"],
+      "expectedSources": ["sso-saml"]
+    },
+    {
+      "id": "g09",
+      "question": "What phone number does DemoDesk support have?",
+      "answerable": false
+    },
+    {
+      "id": "g10",
+      "question": "How much does the Enterprise plan cost per user per month in euros?",
+      "answerable": false
+    },
+    {
+      "id": "g11",
+      "question": "What is the home address of the DemoDesk CEO?",
+      "answerable": false
+    },
+    {
+      "id": "g12",
+      "question": "Which programming language is the DemoDesk backend written in?",
+      "answerable": false
+    }
+  ]
+}

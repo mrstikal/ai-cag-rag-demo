@@ -447,6 +447,391 @@
       });
   });
 
+  // ====================== Tab: answer =====================================
+  var answerForm = document.getElementById("answer-form");
+  var answerInput = document.getElementById("answer-question");
+  var answerClearBtn = document.getElementById("answer-clear");
+  var answerSubmitBtn = document.getElementById("answer-submit");
+  var answerMetaEl = document.getElementById("answer-meta");
+  var answerBodyEl = document.getElementById("answer-tab-body");
+  var answerSourcesEl = document.getElementById("answer-sources");
+  var answerSourcesTitle = document.getElementById("answer-sources-title");
+
+  function clearAnswerTab() {
+    answerBodyEl.replaceChildren();
+    answerSourcesEl.replaceChildren();
+    answerMetaEl.replaceChildren();
+    answerSourcesTitle.hidden = true;
+  }
+
+  function citationBadge(sourceId) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "cite";
+    button.dataset.source = sourceId;
+    button.textContent = sourceId.replace(/^S/, "");
+    return button;
+  }
+
+  function renderAnswerText(text) {
+    var container = document.createElement("div");
+    container.className = "answer-text";
+    text.split(/(\[S\d+\])/g).forEach(function (part) {
+      var match = /^\[(S\d+)\]$/.exec(part);
+      if (match && match[1]) container.appendChild(citationBadge(match[1]));
+      else if (part) container.appendChild(document.createTextNode(part));
+    });
+    return container;
+  }
+
+  function renderAnswer(data) {
+    clearAnswerTab();
+
+    answerMetaEl.appendChild(element("span", "applied-label", "status:"));
+    var statusBadge = element("span", "status-badge is-" + data.status, data.status);
+    answerMetaEl.appendChild(statusBadge);
+    answerMetaEl.appendChild(element("span", "applied-label", "model:"));
+    answerMetaEl.appendChild(element("span", "applied-values", data.model));
+
+    answerBodyEl.appendChild(renderAnswerText(data.answer));
+
+    if (data.sources && data.sources.length > 0) {
+      answerSourcesTitle.hidden = false;
+      var list = document.createElement("ol");
+      list.className = "source-list";
+      data.sources.forEach(function (source) {
+        var li = document.createElement("li");
+        li.className = "source-card";
+        li.id = "source-" + source.sourceId;
+
+        var head = document.createElement("div");
+        head.className = "source-head";
+        head.appendChild(element("span", "cite-static", source.sourceId.replace(/^S/, "")));
+        head.appendChild(element("span", "source-title", source.title));
+        var badge = element("span", "badge", source.status);
+        if (source.status !== "active") badge.classList.add("is-obsolete");
+        head.appendChild(badge);
+        li.appendChild(head);
+
+        li.appendChild(element("div", "result-meta", source.citation));
+        if (source.rerankScore !== undefined && source.rerankScore !== null) {
+          li.appendChild(element("div", "source-score", "rerank " + Number(source.rerankScore).toFixed(4)));
+        }
+        li.appendChild(element("p", "text", stripLeadingHeading(source.text)));
+        list.appendChild(li);
+      });
+      answerSourcesEl.appendChild(list);
+    }
+  }
+
+  answerInput.addEventListener("input", function () {
+    answerClearBtn.hidden = answerInput.value.length === 0;
+    if (answerInput.value.trim() === "") clearAnswerTab();
+  });
+
+  answerClearBtn.addEventListener("click", function () {
+    answerInput.value = "";
+    answerClearBtn.hidden = true;
+    clearAnswerTab();
+    answerInput.focus();
+  });
+
+  answerForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var question = answerInput.value.trim();
+    if (question === "") {
+      clearAnswerTab();
+      return;
+    }
+    answerSubmitBtn.disabled = true;
+    clearAnswerTab();
+    answerBodyEl.appendChild(element("p", "state", "Generating\u2026"));
+
+    fetch("/api/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: question }),
+    })
+      .then(function (response) {
+        return response
+          .json()
+          .catch(function () {
+            return {};
+          })
+          .then(function (data) {
+            if (!response.ok) throw new Error(data.error || "Request failed (" + response.status + ")");
+            return data;
+          });
+      })
+      .then(function (data) {
+        renderAnswer(data);
+      })
+      .catch(function (error) {
+        clearAnswerTab();
+        answerBodyEl.appendChild(element("p", "error", error.message || "Answer failed"));
+      })
+      .then(function () {
+        answerSubmitBtn.disabled = false;
+      });
+  });
+
+  answerBodyEl.addEventListener("click", function (event) {
+    var target = event.target;
+    if (target && target.classList && target.classList.contains("cite")) {
+      var card = document.getElementById("source-" + target.dataset.source);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add("is-highlight");
+        setTimeout(function () {
+          card.classList.remove("is-highlight");
+        }, 1200);
+      }
+    }
+  });
+
+  // ====================== Tab: agentic ====================================
+  var agenticForm = document.getElementById("agentic-form");
+  var agenticInput = document.getElementById("agentic-question");
+  var agenticClearBtn = document.getElementById("agentic-clear");
+  var agenticSubmitBtn = document.getElementById("agentic-submit");
+  var agenticMetaEl = document.getElementById("agentic-meta");
+  var agenticBodyEl = document.getElementById("agentic-body");
+  var agenticTraceEl = document.getElementById("agentic-trace");
+  var agenticSourcesEl = document.getElementById("agentic-sources");
+  var agenticSourcesTitle = document.getElementById("agentic-sources-title");
+
+  function clearAgentic() {
+    agenticBodyEl.replaceChildren();
+    agenticTraceEl.replaceChildren();
+    agenticSourcesEl.replaceChildren();
+    agenticMetaEl.replaceChildren();
+    agenticSourcesTitle.hidden = true;
+  }
+
+  function renderAgenticTrace(data) {
+    var wrap = document.createElement("div");
+    wrap.className = "trace";
+    wrap.appendChild(element("div", "trace-title", "Retrieval trace"));
+    wrap.appendChild(element("div", "trace-step", "initial retrieval \u2192 " + data.initialChunks + " chunks"));
+    data.searches.forEach(function (step, index) {
+      var line =
+        "search_kb #" +
+        (index + 1) +
+        '  "' +
+        step.query +
+        '"' +
+        (step.category ? "  category=" + step.category : "") +
+        "  \u2192 +" +
+        step.added +
+        " chunks";
+      wrap.appendChild(element("div", "trace-step", line));
+    });
+    if (data.searches.length === 0) {
+      wrap.appendChild(element("div", "trace-note", "no extra searches needed"));
+    }
+    wrap.appendChild(
+      element("div", "trace-note", "unique chunks: " + data.uniqueChunks + " (max extra searches: " + data.maxExtraSearches + ")"),
+    );
+    agenticTraceEl.appendChild(wrap);
+  }
+
+  function renderAgentic(data) {
+    clearAgentic();
+
+    agenticMetaEl.appendChild(element("span", "applied-label", "status:"));
+    agenticMetaEl.appendChild(element("span", "status-badge is-" + data.status, data.status));
+    agenticMetaEl.appendChild(element("span", "applied-label", "model:"));
+    agenticMetaEl.appendChild(element("span", "applied-values", data.model));
+
+    agenticBodyEl.appendChild(renderAnswerText(data.answer));
+    renderAgenticTrace(data);
+
+    if (data.sources && data.sources.length > 0) {
+      agenticSourcesTitle.hidden = false;
+      var list = document.createElement("ol");
+      list.className = "source-list";
+      data.sources.forEach(function (source) {
+        var li = document.createElement("li");
+        li.className = "source-card";
+        li.id = "agentic-source-" + source.sourceId;
+
+        var head = document.createElement("div");
+        head.className = "source-head";
+        head.appendChild(element("span", "cite-static", source.sourceId.replace(/^S/, "")));
+        head.appendChild(element("span", "source-title", source.title));
+        var badge = element("span", "badge", source.status);
+        if (source.status !== "active") badge.classList.add("is-obsolete");
+        head.appendChild(badge);
+        li.appendChild(head);
+
+        li.appendChild(element("div", "result-meta", source.citation));
+        if (source.rerankScore !== null && source.rerankScore !== undefined) {
+          li.appendChild(element("div", "source-score", "rerank " + Number(source.rerankScore).toFixed(4)));
+        }
+        li.appendChild(element("p", "text", stripLeadingHeading(source.text)));
+        list.appendChild(li);
+      });
+      agenticSourcesEl.appendChild(list);
+    }
+  }
+
+  agenticInput.addEventListener("input", function () {
+    agenticClearBtn.hidden = agenticInput.value.length === 0;
+    if (agenticInput.value.trim() === "") clearAgentic();
+  });
+
+  agenticClearBtn.addEventListener("click", function () {
+    agenticInput.value = "";
+    agenticClearBtn.hidden = true;
+    clearAgentic();
+    agenticInput.focus();
+  });
+
+  agenticForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var question = agenticInput.value.trim();
+    if (question === "") {
+      clearAgentic();
+      return;
+    }
+    agenticSubmitBtn.disabled = true;
+    clearAgentic();
+    agenticBodyEl.appendChild(element("p", "state", "Running agentic answer\u2026"));
+
+    fetch("/api/agentic", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: question }),
+    })
+      .then(function (response) {
+        return response
+          .json()
+          .catch(function () {
+            return {};
+          })
+          .then(function (data) {
+            if (!response.ok) throw new Error(data.error || "Request failed (" + response.status + ")");
+            return data;
+          });
+      })
+      .then(function (data) {
+        renderAgentic(data);
+      })
+      .catch(function (error) {
+        clearAgentic();
+        agenticBodyEl.appendChild(element("p", "error", error.message || "Agentic answer failed"));
+      })
+      .then(function () {
+        agenticSubmitBtn.disabled = false;
+      });
+  });
+
+  agenticBodyEl.addEventListener("click", function (event) {
+    var target = event.target;
+    if (target && target.classList && target.classList.contains("cite")) {
+      var card = document.getElementById("agentic-source-" + target.dataset.source);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add("is-highlight");
+        setTimeout(function () {
+          card.classList.remove("is-highlight");
+        }, 1200);
+      }
+    }
+  });
+
+  // ====================== Generation eval =================================
+  var genEvalRun = document.getElementById("gen-eval-run");
+  var genEvalBody = document.getElementById("gen-eval-body");
+
+  function renderGenEvalState(message, className) {
+    genEvalBody.replaceChildren();
+    genEvalBody.appendChild(element("p", className || "state", message));
+  }
+
+  function metricTile(label, value) {
+    var tile = document.createElement("div");
+    tile.className = "metric";
+    tile.appendChild(element("span", "metric-value", value));
+    tile.appendChild(element("span", "metric-label", label));
+    return tile;
+  }
+
+  function renderGenEval(report) {
+    genEvalBody.replaceChildren();
+    var metrics = report.metrics;
+
+    var cards = document.createElement("div");
+    cards.className = "metrics";
+    cards.appendChild(metricTile("Answerable", metrics.answerableCorrect + "/" + metrics.answerableTotal));
+    cards.appendChild(metricTile("Unanswerable", metrics.unanswerableCorrect + "/" + metrics.unanswerableTotal));
+    cards.appendChild(metricTile("Citations valid", metrics.citationValid + "/" + metrics.total));
+    cards.appendChild(metricTile("Source hit", metrics.expectedSourceHit + "/" + metrics.answerableTotal));
+    genEvalBody.appendChild(cards);
+    genEvalBody.appendChild(element("p", "eval-meta", "model: " + report.model));
+
+    var scroll = document.createElement("div");
+    scroll.className = "table-scroll";
+    var table = document.createElement("table");
+    table.className = "eval-table";
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    ["id", "type", "status", "src", "facts", "citations", "question"].forEach(function (label) {
+      headRow.appendChild(element("th", null, label));
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    report.outcomes.forEach(function (outcome) {
+      var row = document.createElement("tr");
+      if (outcome.status === "error" || (outcome.answerable && outcome.expectedSourceHit !== true)) {
+        row.className = "is-miss";
+      }
+      row.appendChild(element("td", "cell-id", outcome.id));
+      row.appendChild(element("td", null, outcome.answerable ? "ans" : "unans"));
+      row.appendChild(element("td", null, outcome.status));
+      row.appendChild(element("td", "cell-rank", outcome.answerable ? (outcome.expectedSourceHit ? "ok" : "MISS") : "\u2013"));
+      row.appendChild(element("td", "cell-rank", outcome.answerable ? (outcome.factsOk ? "ok" : "MISS") : "\u2013"));
+      row.appendChild(element("td", null, outcome.citations.join(" ") || "\u2013"));
+      row.appendChild(element("td", "cell-query", outcome.question));
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    scroll.appendChild(table);
+    genEvalBody.appendChild(scroll);
+  }
+
+  genEvalRun.addEventListener("click", function () {
+    genEvalRun.disabled = true;
+    renderGenEvalState("Running generation eval\u2026");
+    fetch("/api/generation/eval", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+      .then(function (response) {
+        return response
+          .json()
+          .catch(function () {
+            return {};
+          })
+          .then(function (data) {
+            if (!response.ok) throw new Error(data.error || "Request failed (" + response.status + ")");
+            return data;
+          });
+      })
+      .then(function (report) {
+        renderGenEval(report);
+      })
+      .catch(function (error) {
+        renderGenEvalState(error.message || "Generation eval failed", "error");
+      })
+      .then(function () {
+        genEvalRun.disabled = false;
+      });
+  });
+
   // --- Init ---------------------------------------------------------------
   updateClearButton();
   loadEvalQueries();

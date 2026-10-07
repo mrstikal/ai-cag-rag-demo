@@ -64,6 +64,15 @@ export interface AppConfig {
       model: string;
     };
   };
+  generation: {
+    model: string;
+    topK: number;
+  };
+  agent: {
+    maxExtraSearches: number;
+    maxChunks: number;
+    perSearch: number;
+  };
   server: {
     port: number;
   };
@@ -119,6 +128,15 @@ export const config: AppConfig = {
       baseUrl: readString("COHERE_BASE_URL", "https://api.cohere.com"),
       model: readString("COHERE_RERANK_MODEL", "rerank-v4.0-fast"),
     },
+  },
+  generation: {
+    model: readString("GENERATION_MODEL", "gpt-4o-mini"),
+    topK: readNumber("GENERATION_TOP_K", 5),
+  },
+  agent: {
+    maxExtraSearches: readNumber("AGENT_MAX_SEARCHES", 2),
+    maxChunks: readNumber("AGENT_MAX_CHUNKS", 12),
+    perSearch: readNumber("AGENT_SEARCH_RESULTS", 5),
   },
   server: {
     port: readNumber("PORT", 3000),
