@@ -7,6 +7,9 @@
   "scripts": {
     "seed": "tsx src/seed.ts",
     "search": "tsx src/search.ts",
+    "eval": "tsx src/evaluate.ts",
+    "create-collection": "tsx src/create-collection.ts",
+    "web": "tsx src/server.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
@@ -15,9 +18,11 @@
   "dependencies": {
     "@qdrant/js-client-rest": "^1.19.0",
     "dotenv": "^18.0.6",
+    "gray-matter": "^4.0.3",
     "openai": "^7.30.0",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "uuid": "^14.0.2"
   },
   "devDependencies": {
     "@types/node": "^26.6.4"
