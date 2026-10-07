@@ -12,6 +12,7 @@ import {
 
 interface ParsedArgs {
   topK: number;
+  candidateDepth: number;
   file: string;
   json: boolean;
   out: string | undefined;
@@ -19,6 +20,7 @@ interface ParsedArgs {
 
 function parseArgs(argv: string[]): ParsedArgs {
   let topK = config.search.topK;
+  let candidateDepth = config.eval.candidateDepth;
   let file = DEFAULT_EVAL_FILE;
   let json = false;
   let out: string | undefined;
@@ -29,6 +31,11 @@ function parseArgs(argv: string[]): ParsedArgs {
       const parsed = Number(argv[i + 1]);
       if (!Number.isFinite(parsed) || parsed <= 0) throw new Error("--top requires a positive integer");
       topK = Math.floor(parsed);
+      i += 1;
+    } else if (arg === "--candidates" || arg === "-c") {
+      const parsed = Number(argv[i + 1]);
+      if (!Number.isFinite(parsed) || parsed <= 0) throw new Error("--candidates requires a positive integer");
+      candidateDepth = Math.floor(parsed);
       i += 1;
     } else if (arg === "--file") {
       const value = argv[i + 1];
@@ -45,7 +52,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  return { topK, file, json, out };
+  return { topK, candidateDepth, file, json, out };
 }
 
 function percent(value: number): string {
@@ -65,15 +72,36 @@ function chunkCell(outcome: QueryOutcome): string {
   return outcome.chunkRank === null ? "X" : String(outcome.chunkRank);
 }
 
-function printComparison(dense: QueryOutcome[], metadata: QueryOutcome[]): void {
-  console.log("eval   dense    metadata   query");
-  console.log("       doc chk  doc chk");
-  dense.forEach((outcome, index) => {
-    const meta = metadata[index];
-    if (!meta) return;
-    const denseCols = `${docCell(outcome.rank).padStart(3)} ${chunkCell(outcome).padStart(3)}`;
-    const metaCols = `${docCell(meta.rank).padStart(3)} ${chunkCell(meta).padStart(3)}`;
-    console.log(`${outcome.id}  ${denseCols}  ${metaCols}   ${truncate(outcome.query, 46)}`);
+function modeColumns(report: EvalReport): { label: string; mode: EvalModeResult }[] {
+  return [
+    { label: "Dense", mode: report.modes.dense },
+    { label: "Dense+meta", mode: report.modes.denseMetadata },
+    { label: "BM25", mode: report.modes.bm25 },
+    { label: "BM25+meta", mode: report.modes.bm25Metadata },
+    { label: "Hybrid", mode: report.modes.hybrid },
+    { label: "Hybrid+meta", mode: report.modes.hybridMetadata },
+  ];
+}
+
+function printRankTable(report: EvalReport, cellFor: (mode: EvalModeResult, index: number) => string): void {
+  const width = 12;
+  const columns = modeColumns(report);
+  const header = ["id", ...columns.map((column) => column.label), "query"];
+  console.log(header.map((value) => value.padEnd(width)).join(""));
+  report.modes.dense.outcomes.forEach((outcome, index) => {
+    const cells = columns.map((column) => cellFor(column.mode, index).padEnd(width));
+    console.log([outcome.id.padEnd(width), ...cells, truncate(outcome.query, 44)].join(""));
+  });
+}
+
+function printDocTable(report: EvalReport): void {
+  printRankTable(report, (mode, index) => docCell(mode.outcomes[index]?.rank ?? null));
+}
+
+function printChunkTable(report: EvalReport): void {
+  printRankTable(report, (mode, index) => {
+    const outcome = mode.outcomes[index];
+    return outcome ? chunkCell(outcome) : "-";
   });
 }
 
@@ -81,16 +109,18 @@ function printModeSummary(label: string, metrics: Metrics, topK: number): void {
   console.log("");
   console.log(`${label}`);
   console.log(`  Document found:   ${metrics.found}/${metrics.queries}`);
-  if (topK >= 1) console.log(`  Document Hit@1:   ${percent(metrics.hitAt1)}`);
-  if (topK >= 3) console.log(`  Document Hit@3:   ${percent(metrics.hitAt3)}`);
-  if (topK >= 5) console.log(`  Document Hit@5:   ${percent(metrics.hitAt5)}`);
+  console.log(`  Document Hit@1:   ${percent(metrics.hitAt1)}`);
+  console.log(`  Document Hit@3:   ${percent(metrics.hitAt3)}`);
+  console.log(`  Document Hit@5:   ${percent(metrics.hitAt5)}`);
   console.log(`  Document MRR@${topK}: ${metrics.mrr.toFixed(3)}`);
+  console.log(`  Document R@10:    ${percent(metrics.recallAt10)}   R@20: ${percent(metrics.recallAt20)}`);
   if (metrics.chunkQueries > 0) {
     console.log(`  Chunk found:      ${metrics.chunkFound}/${metrics.chunkQueries}`);
-    if (topK >= 1) console.log(`  Chunk Hit@1:      ${percent(metrics.chunkHitAt1)}`);
-    if (topK >= 3) console.log(`  Chunk Hit@3:      ${percent(metrics.chunkHitAt3)}`);
-    if (topK >= 5) console.log(`  Chunk Hit@5:      ${percent(metrics.chunkHitAt5)}`);
+    console.log(`  Chunk Hit@1:      ${percent(metrics.chunkHitAt1)}`);
+    console.log(`  Chunk Hit@3:      ${percent(metrics.chunkHitAt3)}`);
+    console.log(`  Chunk Hit@5:      ${percent(metrics.chunkHitAt5)}`);
     console.log(`  Chunk MRR@${topK}:    ${metrics.chunkMrr.toFixed(3)}`);
+    console.log(`  Chunk R@10:       ${percent(metrics.chunkRecallAt10)}   R@20: ${percent(metrics.chunkRecallAt20)}`);
   }
 }
 
@@ -104,7 +134,9 @@ function printMisses(label: string, outcomes: QueryOutcome[]): void {
   console.log("");
   console.log(`${label} misses:`);
   for (const miss of docMisses) {
-    const got = miss.results.map((result) => result.documentId).join(", ") || "no results";
+    const shown = miss.results.slice(0, 5).map((result) => result.documentId);
+    const suffix = miss.results.length > 5 ? ", …" : "";
+    const got = shown.join(", ") + suffix || "no results";
     console.log(`  doc   ${miss.id}  expected [${miss.expected.join(", ")}], got [${got}]`);
   }
   for (const miss of chunkMisses) {
@@ -117,21 +149,38 @@ function printMisses(label: string, outcomes: QueryOutcome[]): void {
 }
 
 function printReport(report: EvalReport): void {
-  console.log("RAG eval — dense vs dense + metadata");
-  console.log(`File:     ${path.relative(ROOT_DIR, report.file)}`);
-  console.log(`Provider: ${report.provider} / ${report.model}`);
-  console.log(`k:        ${report.topK}`);
+  console.log("RAG eval — dense, BM25, hybrid RRF (± metadata)");
+  console.log(`File:       ${path.relative(ROOT_DIR, report.file)}`);
+  console.log(`Provider:   ${report.provider} / ${report.model}`);
+  console.log(`final k:    ${report.topK}`);
+  console.log(`candidates: ${report.candidateDepth} (rank tables show rank within the candidate pool)`);
+
   console.log("");
-  printComparison(report.dense.outcomes, report.metadata.outcomes);
-  printModeSummary("DENSE (no filters)", report.dense.metrics, report.topK);
-  printModeSummary("DENSE + METADATA", report.metadata.metrics, report.topK);
-  printMisses("Dense", report.dense.outcomes);
-  printMisses("Dense + metadata", report.metadata.outcomes);
+  console.log("DOCUMENT rank (rank of expected document, '-' = miss)");
+  printDocTable(report);
+
+  console.log("");
+  console.log("CHUNK rank (rank of expected chunk, 'X' = miss, '-' = no expectation)");
+  printChunkTable(report);
+
+  printModeSummary("DENSE", report.modes.dense.metrics, report.topK);
+  printModeSummary("DENSE + METADATA", report.modes.denseMetadata.metrics, report.topK);
+  printModeSummary("BM25", report.modes.bm25.metrics, report.topK);
+  printModeSummary("BM25 + METADATA", report.modes.bm25Metadata.metrics, report.topK);
+  printModeSummary("HYBRID (RRF 1:1)", report.modes.hybrid.metrics, report.topK);
+  printModeSummary("HYBRID + METADATA", report.modes.hybridMetadata.metrics, report.topK);
+
+  printMisses("Dense", report.modes.dense.outcomes);
+  printMisses("Dense + metadata", report.modes.denseMetadata.outcomes);
+  printMisses("BM25", report.modes.bm25.outcomes);
+  printMisses("BM25 + metadata", report.modes.bm25Metadata.outcomes);
+  printMisses("Hybrid", report.modes.hybrid.outcomes);
+  printMisses("Hybrid + metadata", report.modes.hybridMetadata.outcomes);
 }
 
 async function main(): Promise<void> {
-  const { topK, file, json, out } = parseArgs(process.argv.slice(2));
-  const report = await buildReport(file, topK);
+  const { topK, candidateDepth, file, json, out } = parseArgs(process.argv.slice(2));
+  const report = await buildReport(file, topK, candidateDepth);
 
   if (json) {
     console.log(JSON.stringify(report, null, 2));

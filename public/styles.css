@@ -561,6 +561,21 @@ body {
   color: var(--danger);
 }
 
+.cell-retriever {
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--accent-dark);
+}
+
+.cell-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.eval-results .section-title {
+  margin-top: 20px;
+}
+
 .cell-query {
   min-width: 200px;
 }

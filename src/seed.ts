@@ -7,11 +7,14 @@ import { chunkMarkdown } from "./chunker";
 import { embedTexts, getEmbedder } from "./embeddings";
 import { chunkId } from "./id";
 import {
+  BM25_MODEL,
+  BM25_VECTOR,
   collectionExists,
   countPoints,
   createClient,
   createCollection,
   createPayloadIndexes,
+  DENSE_VECTOR,
   getCollectionVectorSize,
   recreateCollection,
   upsertPoints,
@@ -92,7 +95,14 @@ async function main(): Promise<void> {
           source_file: filename,
           text: chunk.text,
         };
-        points.push({ id: chunkId(documentId, chunk.index), vector, payload });
+        points.push({
+          id: chunkId(documentId, chunk.index),
+          vector: {
+            [DENSE_VECTOR]: vector,
+            [BM25_VECTOR]: { text: chunk.text, model: BM25_MODEL },
+          },
+          payload,
+        });
       }
 
       documents += 1;

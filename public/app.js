@@ -8,6 +8,7 @@
   var answerBody = document.getElementById("answer-body");
   var appliedFilters = document.getElementById("applied-filters");
 
+  var filterRetriever = document.getElementById("filter-retriever");
   var filterStatus = document.getElementById("filter-status");
   var filterLocale = document.getElementById("filter-locale");
   var filterCategory = document.getElementById("filter-category");
@@ -83,8 +84,10 @@
     appliedFilters.replaceChildren();
   }
 
-  function renderAppliedFilters(filters) {
+  function renderAppliedFilters(retriever, filters) {
     appliedFilters.replaceChildren();
+    appliedFilters.appendChild(element("span", "applied-label", "Retriever:"));
+    appliedFilters.appendChild(element("span", "applied-values", retriever));
     appliedFilters.appendChild(element("span", "applied-label", "Filters:"));
     appliedFilters.appendChild(element("span", "applied-values", describeFilters(filters)));
   }
@@ -96,7 +99,7 @@
 
   function renderResults(data) {
     answerBody.replaceChildren();
-    renderAppliedFilters(data.filters);
+    renderAppliedFilters(data.retriever, data.filters);
 
     if (!data.results || data.results.length === 0) {
       answerBody.appendChild(element("p", "state", "No matching chunks found."));
@@ -173,7 +176,7 @@
     fetch("/api/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: question, filters: collectFilters() }),
+      body: JSON.stringify({ query: question, retriever: filterRetriever.value, filters: collectFilters() }),
     })
       .then(function (response) {
         return response
@@ -226,117 +229,160 @@
     evalQueries.appendChild(list);
   }
 
-  function metricCard(label, value, hint) {
-    var card = document.createElement("div");
-    card.className = "metric";
-    card.appendChild(element("span", "metric-value", value));
-    card.appendChild(element("span", "metric-label", label));
-    if (hint) card.appendChild(element("span", "metric-hint", hint));
-    return card;
-  }
+  var MODE_COLUMNS = [
+    { key: "dense", label: "Dense" },
+    { key: "denseMetadata", label: "Dense+meta" },
+    { key: "bm25", label: "BM25" },
+    { key: "bm25Metadata", label: "BM25+meta" },
+    { key: "hybrid", label: "Hybrid" },
+    { key: "hybridMetadata", label: "Hybrid+meta" },
+  ];
 
-  function metricGroup(label, cards) {
-    var group = document.createElement("div");
-    group.className = "metric-group";
-    group.appendChild(element("div", "metric-group-label", label));
-    var row = document.createElement("div");
-    row.className = "metrics";
-    cards.forEach(function (card) {
-      row.appendChild(card);
-    });
-    group.appendChild(row);
-    return group;
-  }
-
-  function rankText(rank) {
-    return rank === null ? "MISS" : "#" + rank;
-  }
-
-  function chunkText(outcome) {
-    if (outcome.expectedChunk === undefined) return "\u2013";
-    return outcome.chunkRank === null ? "MISS" : "#" + outcome.chunkRank;
-  }
-
-  function renderEvalReport(report) {
-    evalResultsBody.replaceChildren();
-
-    ["dense", "metadata"].forEach(function (modeKey) {
-      var mode = report[modeKey];
-      var metrics = mode.metrics;
-      var label = modeKey === "dense" ? "Dense (no filters)" : "Dense + metadata";
-
-      var docCards = [];
-      if (report.topK >= 1) docCards.push(metricCard("Hit@1", percent(metrics.hitAt1)));
-      if (report.topK >= 3) docCards.push(metricCard("Hit@3", percent(metrics.hitAt3)));
-      if (report.topK >= 5) docCards.push(metricCard("Hit@5", percent(metrics.hitAt5)));
-      docCards.push(metricCard("MRR@" + report.topK, metrics.mrr.toFixed(3)));
-      docCards.push(metricCard("Found", metrics.found + "/" + metrics.queries));
-      evalResultsBody.appendChild(metricGroup(label + " \u2014 document", docCards));
-
-      if (metrics.chunkQueries > 0) {
-        var chunkCards = [];
-        if (report.topK >= 1) chunkCards.push(metricCard("Hit@1", percent(metrics.chunkHitAt1)));
-        if (report.topK >= 3) chunkCards.push(metricCard("Hit@3", percent(metrics.chunkHitAt3)));
-        if (report.topK >= 5) chunkCards.push(metricCard("Hit@5", percent(metrics.chunkHitAt5)));
-        chunkCards.push(metricCard("MRR@" + report.topK, metrics.chunkMrr.toFixed(3)));
-        chunkCards.push(metricCard("Found", metrics.chunkFound + "/" + metrics.chunkQueries));
-        evalResultsBody.appendChild(metricGroup(label + " \u2014 chunk", chunkCards));
-      }
-    });
-
-    evalResultsBody.appendChild(
-      element("p", "eval-meta", report.provider + " / " + report.model + " \u00b7 k=" + report.topK),
-    );
-
-    var scroll = document.createElement("div");
-    scroll.className = "table-scroll";
-
+  function buildMetricsTable(report) {
     var table = document.createElement("table");
     table.className = "eval-table";
-    var thead = document.createElement("thead");
+
     var headRow = document.createElement("tr");
-    ["id", "query", "dense doc", "dense chunk", "meta doc", "meta chunk", "expected"].forEach(function (label) {
-      headRow.appendChild(element("th", null, label));
-    });
+    ["Retriever", "Doc H@1", "Doc H@3", "Doc H@5", "Doc MRR", "Chunk H@1", "Chunk H@3", "Chunk H@5", "Chunk MRR"].forEach(
+      function (label) {
+        headRow.appendChild(element("th", null, label));
+      },
+    );
+    var thead = document.createElement("thead");
     thead.appendChild(headRow);
     table.appendChild(thead);
 
     var tbody = document.createElement("tbody");
-    report.dense.outcomes.forEach(function (denseOutcome, index) {
-      var metaOutcome = report.metadata.outcomes[index];
-      if (!metaOutcome) return;
-
+    MODE_COLUMNS.forEach(function (column) {
+      var metrics = report.modes[column.key].metrics;
       var row = document.createElement("tr");
-      if (metaOutcome.rank === null) row.className = "is-miss";
-
-      row.appendChild(element("td", "cell-id", denseOutcome.id));
-      row.appendChild(element("td", "cell-query", denseOutcome.query));
-
-      row.appendChild(element("td", "cell-rank", rankText(denseOutcome.rank)));
-
-      var denseChunk = element("td", "cell-chunk", chunkText(denseOutcome));
-      if (denseOutcome.expectedChunk !== undefined && denseOutcome.chunkRank === null) {
-        denseChunk.classList.add("is-miss");
-      }
-      row.appendChild(denseChunk);
-
-      row.appendChild(element("td", "cell-rank", rankText(metaOutcome.rank)));
-
-      var metaChunk = element("td", "cell-chunk", chunkText(metaOutcome));
-      if (metaOutcome.expectedChunk !== undefined && metaOutcome.chunkRank === null) {
-        metaChunk.classList.add("is-miss");
-      }
-      row.appendChild(metaChunk);
-
-      var expectedText = denseOutcome.expected.join(", ");
-      if (denseOutcome.expectedChunk !== undefined) expectedText += " \u00b7 chunk " + denseOutcome.expectedChunk;
-      row.appendChild(element("td", "cell-expected", expectedText));
-
+      row.appendChild(element("td", "cell-retriever", column.label));
+      [metrics.hitAt1, metrics.hitAt3, metrics.hitAt5].forEach(function (value) {
+        row.appendChild(element("td", "cell-num", percent(value)));
+      });
+      row.appendChild(element("td", "cell-num", metrics.mrr.toFixed(3)));
+      [metrics.chunkHitAt1, metrics.chunkHitAt3, metrics.chunkHitAt5].forEach(function (value) {
+        row.appendChild(element("td", "cell-num", percent(value)));
+      });
+      row.appendChild(element("td", "cell-num", metrics.chunkMrr.toFixed(3)));
       tbody.appendChild(row);
     });
     table.appendChild(tbody);
+    return table;
+  }
+
+  function buildRecallTable(report) {
+    var table = document.createElement("table");
+    table.className = "eval-table";
+
+    var headRow = document.createElement("tr");
+    ["Retriever", "Doc R@10", "Doc R@20", "Chunk R@10", "Chunk R@20"].forEach(function (label) {
+      headRow.appendChild(element("th", null, label));
+    });
+    var thead = document.createElement("thead");
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    MODE_COLUMNS.forEach(function (column) {
+      var metrics = report.modes[column.key].metrics;
+      var row = document.createElement("tr");
+      row.appendChild(element("td", "cell-retriever", column.label));
+      [metrics.recallAt10, metrics.recallAt20, metrics.chunkRecallAt10, metrics.chunkRecallAt20].forEach(
+        function (value) {
+          row.appendChild(element("td", "cell-num", percent(value)));
+        },
+      );
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function buildRankTable(report, kind) {
+    var table = document.createElement("table");
+    table.className = "eval-table";
+
+    var headRow = document.createElement("tr");
+    headRow.appendChild(element("th", null, "id"));
+    headRow.appendChild(element("th", null, "query"));
+    MODE_COLUMNS.forEach(function (column) {
+      headRow.appendChild(element("th", null, column.label));
+    });
+    headRow.appendChild(element("th", null, "expected"));
+    var thead = document.createElement("thead");
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    report.modes.dense.outcomes.forEach(function (baseOutcome, index) {
+      var row = document.createElement("tr");
+      row.appendChild(element("td", "cell-id", baseOutcome.id));
+      row.appendChild(element("td", "cell-query", baseOutcome.query));
+
+      MODE_COLUMNS.forEach(function (column) {
+        var outcome = report.modes[column.key].outcomes[index];
+        var cell = document.createElement("td");
+        if (kind === "chunk") {
+          cell.className = "cell-chunk";
+          if (!outcome || outcome.expectedChunk === undefined) {
+            cell.textContent = "\u2013";
+          } else if (outcome.chunkRank === null) {
+            cell.textContent = "MISS";
+            cell.classList.add("is-miss");
+          } else {
+            cell.textContent = "#" + outcome.chunkRank;
+          }
+        } else {
+          cell.className = "cell-rank";
+          if (!outcome || outcome.rank === null) {
+            cell.textContent = "MISS";
+            cell.classList.add("is-miss");
+          } else {
+            cell.textContent = "#" + outcome.rank;
+          }
+        }
+        row.appendChild(cell);
+      });
+
+      var expectedText = baseOutcome.expected.join(", ");
+      if (baseOutcome.expectedChunk !== undefined) expectedText += " \u00b7 chunk " + baseOutcome.expectedChunk;
+      row.appendChild(element("td", "cell-expected", expectedText));
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function tableView(title, table) {
+    var wrap = document.createElement("div");
+    wrap.appendChild(element("h3", "section-title", title));
+    var scroll = document.createElement("div");
+    scroll.className = "table-scroll";
     scroll.appendChild(table);
-    evalResultsBody.appendChild(scroll);
+    wrap.appendChild(scroll);
+    return wrap;
+  }
+
+  function renderEvalReport(report) {
+    evalResultsBody.replaceChildren();
+    evalResultsBody.appendChild(
+      element(
+        "p",
+        "eval-meta",
+        report.provider +
+          " / " +
+          report.model +
+          " \u00b7 k=" +
+          report.topK +
+          " \u00b7 candidates=" +
+          report.candidateDepth,
+      ),
+    );
+    evalResultsBody.appendChild(tableView("Metrics", buildMetricsTable(report)));
+    evalResultsBody.appendChild(tableView("Candidate recall", buildRecallTable(report)));
+    evalResultsBody.appendChild(tableView("Document rank", buildRankTable(report, "doc")));
+    evalResultsBody.appendChild(tableView("Chunk rank", buildRankTable(report, "chunk")));
   }
 
   function renderEvalState(message, className) {

@@ -41,6 +41,10 @@ export interface AppConfig {
   };
   search: {
     topK: number;
+    prefetchLimit: number;
+  };
+  eval: {
+    candidateDepth: number;
   };
   server: {
     port: number;
@@ -70,6 +74,10 @@ export const config: AppConfig = {
   },
   search: {
     topK: readNumber("SEARCH_TOP_K", 5),
+    prefetchLimit: readNumber("SEARCH_PREFETCH_LIMIT", 20),
+  },
+  eval: {
+    candidateDepth: readNumber("EVAL_CANDIDATE_DEPTH", 20),
   },
   server: {
     port: readNumber("PORT", 3000),

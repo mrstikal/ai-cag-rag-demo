@@ -15,9 +15,20 @@ export interface ChunkPayload {
   text: string;
 }
 
+export interface Bm25Inference {
+  text: string;
+  model: string;
+}
+
+/** Named dense vector plus a server-side BM25 sparse vector. */
+export interface PointVector {
+  dense: number[];
+  bm25: Bm25Inference;
+}
+
 export interface Point {
   id: string;
-  vector: number[];
+  vector: PointVector;
   payload: ChunkPayload;
 }
 
@@ -26,6 +37,10 @@ export interface SearchHit {
   score: number;
   payload: ChunkPayload;
 }
+
+export const DENSE_VECTOR = "dense";
+export const BM25_VECTOR = "bm25";
+export const BM25_MODEL = "qdrant/bm25";
 
 export function createClient(): QdrantClient {
   return new QdrantClient({ url: config.qdrant.url });
@@ -57,7 +72,12 @@ export async function createCollection(
   dimensions: number,
 ): Promise<void> {
   await client.createCollection(name, {
-    vectors: { size: dimensions, distance: "Cosine" },
+    vectors: {
+      [DENSE_VECTOR]: { size: dimensions, distance: "Cosine" },
+    },
+    sparse_vectors: {
+      [BM25_VECTOR]: { modifier: "idf" },
+    },
   });
 }
 
@@ -105,7 +125,7 @@ export async function upsertPoints(
   for (let start = 0; start < points.length; start += batchSize) {
     const batch = points.slice(start, start + batchSize).map((point) => ({
       id: point.id,
-      vector: point.vector,
+      vector: point.vector as unknown as Schemas["VectorStruct"],
       payload: point.payload as unknown as Record<string, unknown>,
     }));
     // Upsert overwrites a point with the same id, so re-seeding is idempotent.
@@ -113,7 +133,16 @@ export async function upsertPoints(
   }
 }
 
-export async function searchPoints(
+function toHits(points: { id: string | number; score: number; payload?: unknown }[]): SearchHit[] {
+  return points.map((point) => ({
+    id: point.id,
+    score: point.score,
+    payload: point.payload as unknown as ChunkPayload,
+  }));
+}
+
+/** Dense cosine search over the named `dense` vector. */
+export async function denseSearchPoints(
   client: QdrantClient,
   name: string,
   vector: number[],
@@ -122,15 +151,68 @@ export async function searchPoints(
 ): Promise<SearchHit[]> {
   const response = await client.query(name, {
     query: vector,
+    using: DENSE_VECTOR,
     limit,
     with_payload: true,
     filter,
   });
-  return response.points.map((point) => ({
-    id: point.id,
-    score: point.score,
-    payload: point.payload as unknown as ChunkPayload,
-  }));
+  return toHits(response.points);
+}
+
+/** BM25 sparse search: Qdrant tokenizes and scores the query server-side. */
+export async function bm25SearchPoints(
+  client: QdrantClient,
+  name: string,
+  queryText: string,
+  limit: number,
+  filter?: Schemas["Filter"],
+): Promise<SearchHit[]> {
+  const response = await client.query(name, {
+    query: { text: queryText, model: BM25_MODEL },
+    using: BM25_VECTOR,
+    limit,
+    with_payload: true,
+    filter,
+  });
+  return toHits(response.points);
+}
+
+/**
+ * Hybrid retrieval: prefetch from dense and BM25 independently, then fuse the
+ * two rankings with Reciprocal Rank Fusion (RRF). RRF uses ranks, not raw
+ * scores, so the incomparable cosine and BM25 score scales never mix.
+ * `prefetchLimit` is the candidate pool per branch (must be >= the final limit).
+ */
+export async function hybridSearchPoints(
+  client: QdrantClient,
+  name: string,
+  denseVector: number[],
+  queryText: string,
+  limit: number,
+  filter?: Schemas["Filter"],
+  prefetchLimit = 20,
+): Promise<SearchHit[]> {
+  const response = await client.query(name, {
+    prefetch: [
+      {
+        query: denseVector,
+        using: DENSE_VECTOR,
+        limit: prefetchLimit,
+        ...(filter ? { filter } : {}),
+      },
+      {
+        query: { text: queryText, model: BM25_MODEL },
+        using: BM25_VECTOR,
+        limit: prefetchLimit,
+        ...(filter ? { filter } : {}),
+      },
+    ],
+    // 1:1 Dense : BM25. Weighted RRF is a later, data-driven decision.
+    query: { rrf: {} },
+    limit,
+    with_payload: true,
+  });
+  return toHits(response.points);
 }
 
 export async function countPoints(client: QdrantClient, name: string): Promise<number> {

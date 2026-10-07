@@ -1,14 +1,16 @@
 import { config } from "./config";
-import { semanticSearch, type SearchFilters } from "./retrieval";
+import { search, type Retriever, type SearchFilters } from "./retrieval";
 
 interface ParsedArgs {
   query: string;
   topK: number;
   filters: SearchFilters;
+  retriever: Retriever;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
   let topK = config.search.topK;
+  let retriever: Retriever = "dense";
   const filters: SearchFilters = {};
   const parts: string[] = [];
 
@@ -21,6 +23,12 @@ function parseArgs(argv: string[]): ParsedArgs {
         throw new Error("--top requires a positive integer");
       }
       topK = Math.floor(parsed);
+      i += 1;
+    } else if (arg === "--retriever") {
+      if (next !== "dense" && next !== "bm25" && next !== "hybrid") {
+        throw new Error('--retriever must be "dense", "bm25" or "hybrid"');
+      }
+      retriever = next;
       i += 1;
     } else if (arg === "--status") {
       if (!next) throw new Error("--status requires a value");
@@ -43,7 +51,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  return { query: parts.join(" ").trim(), topK, filters };
+  return { query: parts.join(" ").trim(), topK, filters, retriever };
 }
 
 function describeFilters(filters: SearchFilters): string {
@@ -65,19 +73,20 @@ function indent(text: string, prefix = "   "): string {
 }
 
 async function main(): Promise<void> {
-  const { query, topK, filters } = parseArgs(process.argv.slice(2));
+  const { query, topK, filters, retriever } = parseArgs(process.argv.slice(2));
 
   if (query === "" || query === "--help" || query === "-h") {
-    console.log('Usage: npm run search -- "your question" [--top 5] [--status active] [--locale cs] [--category billing] [--as-of 2025-06-01]');
+    console.log('Usage: npm run search -- "your question" [--retriever dense|bm25|hybrid] [--top 5] [--status active] [--locale cs] [--category billing] [--as-of 2025-06-01]');
     process.exitCode = query === "" ? 1 : 0;
     return;
   }
 
-  const results = await semanticSearch({ query, limit: topK, filters });
+  const results = await search({ query, limit: topK, filters, retriever });
 
   console.log("QUERY");
   console.log(query);
-  console.log(`FILTERS  ${describeFilters(filters)}`);
+  console.log(`RETRIEVER  ${retriever}`);
+  console.log(`FILTERS    ${describeFilters(filters)}`);
   console.log("");
   console.log(`RESULTS (${results.length})`);
 

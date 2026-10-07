@@ -3,7 +3,7 @@ import http from "node:http";
 import path from "node:path";
 import { config, ROOT_DIR } from "./config";
 import { buildReport, DEFAULT_EVAL_FILE, loadEvalQueries } from "./evaluation";
-import { semanticSearch, type SearchFilters } from "./retrieval";
+import { search, type Retriever, type SearchFilters } from "./retrieval";
 
 const PUBLIC_DIR = path.resolve(ROOT_DIR, "public");
 const MAX_BODY_BYTES = 1_000_000;
@@ -85,11 +85,23 @@ async function handleSearch(req: http.IncomingMessage, res: http.ServerResponse)
 
   const filters = readFilters(body);
 
+  let retriever: Retriever = "dense";
+  if (typeof body === "object" && body !== null && "retriever" in body) {
+    const raw = (body as { retriever?: unknown }).retriever;
+    if (raw === "dense" || raw === "bm25" || raw === "hybrid") {
+      retriever = raw;
+    } else if (raw !== undefined && raw !== null && raw !== "") {
+      sendJson(res, 400, { error: 'retriever must be "dense", "bm25" or "hybrid"' });
+      return;
+    }
+  }
+
   try {
-    const results = await semanticSearch({ query, limit: config.search.topK, filters });
+    const results = await search({ query, limit: config.search.topK, filters, retriever });
     sendJson(res, 200, {
       query: query.trim(),
       provider: config.embeddings.provider,
+      retriever,
       filters: filters ?? null,
       results,
     });

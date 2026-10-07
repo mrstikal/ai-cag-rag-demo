@@ -1,7 +1,15 @@
 import type { QdrantClient, Schemas } from "@qdrant/js-client-rest";
 import { config } from "./config";
 import { embedText } from "./embeddings";
-import { createClient, searchPoints } from "./qdrant";
+import {
+  bm25SearchPoints,
+  createClient,
+  denseSearchPoints,
+  hybridSearchPoints,
+  type SearchHit,
+} from "./qdrant";
+
+export type Retriever = "dense" | "bm25" | "hybrid";
 
 export interface SearchFilters {
   status?: string;
@@ -15,6 +23,7 @@ export interface SearchOptions {
   query: string;
   limit?: number;
   filters?: SearchFilters;
+  retriever?: Retriever;
 }
 
 export interface SearchResult {
@@ -40,9 +49,10 @@ function qdrant(): QdrantClient {
 
 /**
  * A metadata filter is NOT part of the similarity computation. It restricts
- * the candidate set; ranking inside that set is still done by the vector
- * similarity. `must` = AND, `should` = OR, `is_empty` matches a missing field,
- * null, or an empty array.
+ * the candidate set; ranking inside that set is still done by the retriever.
+ * `must` = AND, `should` = OR, `is_empty` matches a missing field, null, or an
+ * empty array. The filter is orthogonal to the retriever and applies to both
+ * dense and BM25.
  */
 export function buildFilter(filters?: SearchFilters): Schemas["Filter"] | undefined {
   if (!filters) return undefined;
@@ -72,22 +82,38 @@ export function buildFilter(filters?: SearchFilters): Schemas["Filter"] | undefi
 }
 
 /**
- * Dense retrieval: embed the query with the same model used for documents,
- * return the nearest chunks by cosine similarity, optionally restricted by a
- * metadata filter.
+ * Retrieval entry point. `retriever` selects the mechanism:
+ * - "dense":  OpenAI query embedding + cosine over the `dense` vector
+ * - "bm25":   server-side BM25 sparse retrieval over the `bm25` vector
+ * - "hybrid": dense + BM25 prefetched separately, fused with RRF (1:1)
+ * A metadata filter restricts the candidate set for every retriever.
  */
-export async function semanticSearch(options: SearchOptions): Promise<SearchResult[]> {
+export async function search(options: SearchOptions): Promise<SearchResult[]> {
   const query = options.query.trim();
   if (query === "") return [];
 
-  const vector = await embedText(query);
-  const hits = await searchPoints(
-    qdrant(),
-    config.qdrant.collection,
-    vector,
-    options.limit ?? config.search.topK,
-    buildFilter(options.filters),
-  );
+  const limit = options.limit ?? config.search.topK;
+  const filter = buildFilter(options.filters);
+  const retriever = options.retriever ?? "dense";
+
+  let hits: SearchHit[];
+  if (retriever === "bm25") {
+    hits = await bm25SearchPoints(qdrant(), config.qdrant.collection, query, limit, filter);
+  } else {
+    const vector = await embedText(query);
+    hits =
+      retriever === "hybrid"
+        ? await hybridSearchPoints(
+            qdrant(),
+            config.qdrant.collection,
+            vector,
+            query,
+            limit,
+            filter,
+            config.search.prefetchLimit,
+          )
+        : await denseSearchPoints(qdrant(), config.qdrant.collection, vector, limit, filter);
+  }
 
   return hits.map((hit) => ({
     id: hit.id,
