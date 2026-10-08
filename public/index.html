@@ -12,24 +12,24 @@
       <div class="app-intro">
         <h1 class="app-title">RAG Demo</h1>
         <p class="app-subtitle">
-          Each tab exposes one stage of the pipeline, so you can see what retrieval and generation actually do — and
+          Each tab exposes one stage of the pipeline, so you can see what retrieval and generation actually do - and
           where they fail.
         </p>
         <ul class="tab-legend">
           <li>
-            <strong>Search</strong> — retrieval only. Dense (cosine), BM25, hybrid RRF, or Voyage reranking over the
+            <strong>Search</strong> - retrieval only. Dense (cosine), BM25, hybrid RRF, or Voyage reranking over the
             knowledge base. Shows the ranked chunks, scores, and (for rerank) the dense/BM25 ranks. No LLM.
           </li>
           <li>
-            <strong>Answer</strong> — one grounded RAG pass: the reranked top 5 chunks → LLM (structured output) →
+            <strong>Answer</strong> - one grounded RAG pass: the reranked top 5 chunks → LLM (structured output) →
             answer with validated <code>[S#]</code> citations and the source list.
           </li>
           <li>
-            <strong>Agentic</strong> — like Answer, but the model may call <code>search_kb</code> (bounded) when the
+            <strong>Agentic</strong> - like Answer, but the model may call <code>search_kb</code> (bounded) when the
             sources are insufficient; shows the retrieval trace.
           </li>
           <li>
-            <strong>Eval</strong> — evaluation sets. Retrieval: Hit@k, Recall@k, MRR per retriever, plus recall of the
+            <strong>Eval</strong> - evaluation sets. Retrieval: Hit@k, Recall@k, MRR per retriever, plus recall of the
             expected chunk. Generation: answerable/unanswerable accuracy, citation validity, expected source hit.
           </li>
         </ul>
@@ -162,46 +162,46 @@
 
         <div class="eval-help">
           <p>
-            <strong>top-k</strong> — the final ranking cutoff. <em>Hit@k</em> counts a query as correct if the expected
+            <strong>top-k</strong> - the final ranking cutoff. <em>Hit@k</em> counts a query as correct if the expected
             item is within the top k positions, and <em>MRR</em> only credits ranks up to k. Retrieval in the eval is
             fetched deeper (<code>candidates=20</code>) so <em>Recall@10/@20</em> can be measured independently of k.
           </p>
 
-          <p><strong>Retrieval — column names</strong></p>
+          <p><strong>Retrieval - column names</strong></p>
           <ul>
             <li>
-              <strong>Retriever</strong> — Dense · Dense+metadata · BM25 · BM25+metadata · Hybrid (RRF) · Hybrid+metadata ·
+              <strong>Retriever</strong> - Dense · Dense+metadata · BM25 · BM25+metadata · Hybrid (RRF) · Hybrid+metadata ·
               Rerank · Rerank+metadata.
             </li>
-            <li><strong>Doc H@1 / H@3 / H@5</strong> — share of questions whose expected <em>document</em> is in the top k.</li>
+            <li><strong>Doc H@1 / H@3 / H@5</strong> - share of questions whose expected <em>document</em> is in the top k.</li>
             <li>
-              <strong>Chunk H@1 / H@3 / H@5</strong> — same, for the expected <em>chunk</em> (only queries that declare
+              <strong>Chunk H@1 / H@3 / H@5</strong> - same, for the expected <em>chunk</em> (only queries that declare
               one).
             </li>
             <li>
-              <strong>MRR@k</strong> — mean reciprocal rank: 1/rank of the first correct result, 0 if not found within k.
+              <strong>MRR@k</strong> - mean reciprocal rank: 1/rank of the first correct result, 0 if not found within k.
               Higher is better.
             </li>
             <li>
-              <strong>Doc / Chunk R@10, R@20</strong> (Candidate recall) — share where the expected item is anywhere in
+              <strong>Doc / Chunk R@10, R@20</strong> (Candidate recall) - share where the expected item is anywhere in
               the first 10 / 20 results. This is the candidate pool a reranker can reorder; if it is not here, no
               reranker can help.
             </li>
             <li>
-              <strong>Document rank / Chunk rank tables</strong> — per retriever: <code>#n</code> = rank of the expected
+              <strong>Document rank / Chunk rank tables</strong> - per retriever: <code>#n</code> = rank of the expected
               item, <code>MISS</code> = not found, <code>–</code> = no expectation for that query. The last column shows
               the expected document (and chunk).
             </li>
           </ul>
 
-          <p><strong>Generation eval — column names</strong></p>
+          <p><strong>Generation eval - column names</strong></p>
           <ul>
-            <li><strong>Answerable</strong> — answered <em>and</em> cited the expected source.</li>
-            <li><strong>Unanswerable</strong> — correctly returned <code>insufficient</code> for questions the KB cannot answer.</li>
-            <li><strong>Citations valid</strong> — every cited id exists and every answered response has at least one <code>[Sn]</code>.</li>
-            <li><strong>Source hit</strong> — the expected source document appears among the cited sources.</li>
+            <li><strong>Answerable</strong> - answered <em>and</em> cited the expected source.</li>
+            <li><strong>Unanswerable</strong> - correctly returned <code>insufficient</code> for questions the KB cannot answer.</li>
+            <li><strong>Citations valid</strong> - every cited id exists and every answered response has at least one <code>[Sn]</code>.</li>
+            <li><strong>Source hit</strong> - the expected source document appears among the cited sources.</li>
             <li>
-              <strong>Table</strong> — id · type (ans/unans) · status (answered/insufficient/error) · src (expected source
+              <strong>Table</strong> - id · type (ans/unans) · status (answered/insufficient/error) · src (expected source
               hit) · facts (expected facts present) · citations (S ids used) · question.
             </li>
           </ul>

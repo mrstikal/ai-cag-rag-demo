@@ -151,7 +151,7 @@ function printMisses(label: string, outcomes: QueryOutcome[]): void {
 }
 
 function printReport(report: EvalReport): void {
-  console.log("RAG eval — dense, BM25, hybrid RRF (± metadata)");
+  console.log("RAG eval - dense, BM25, hybrid RRF (± metadata)");
   console.log(`File:       ${path.relative(ROOT_DIR, report.file)}`);
   console.log(`Provider:   ${report.provider} / ${report.model}`);
   console.log(`final k:    ${report.topK}`);

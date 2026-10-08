@@ -15,7 +15,7 @@ tags:
 
 ## Scope model
 
-A scope is a lowercase string of the form `resource:action`, such as `tickets:read` or `webhooks:write`. Scopes restrict what an OAuth access token can do: a token can perform only the actions its scopes allow, regardless of the issuing user's role. Wildcards, prefixes, and implicit hierarchy are not supported — `tickets:write` does not imply `tickets:read`.
+A scope is a lowercase string of the form `resource:action`, such as `tickets:read` or `webhooks:write`. Scopes restrict what an OAuth access token can do: a token can perform only the actions its scopes allow, regardless of the issuing user's role. Wildcards, prefixes, and implicit hierarchy are not supported - `tickets:write` does not imply `tickets:read`.
 
 ## Available scopes
 

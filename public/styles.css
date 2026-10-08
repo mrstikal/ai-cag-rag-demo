@@ -5,10 +5,10 @@
   --border: #d8dee9;
   --text: #1e2430;
   --text-muted: #64708a;
-  --accent: #2f6df6;
-  --accent-dark: #1e50c4;
+  --accent: #4f74c4;
+  --accent-dark: #2a50ab;
   --danger: #c0264b;
-  --radius: 12px;
+  --radius: 6px;
   --shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
 }
 
@@ -19,7 +19,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: linear-gradient(160deg, #0f172a 0%, #1c2b4a 55%, #2a3f66 100%);
+  background: #1E2430FF;
   color: var(--text);
   font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
   display: flex;
@@ -203,7 +203,7 @@ body {
   align-self: flex-start;
   padding: 12px 22px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--accent);
   color: #fff;
   font-size: 15px;
@@ -412,8 +412,8 @@ body {
   padding: 14px 16px;
   background: var(--surface-soft);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  font-size: 12.5px;
+  border-radius: 7px;
+  font-size: 13px;
   line-height: 1.55;
   color: var(--text-muted);
 }

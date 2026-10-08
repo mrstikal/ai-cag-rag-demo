@@ -42,7 +42,7 @@ function mark(value: boolean | null): string {
 }
 
 function printReport(report: GenReport): void {
-  console.log("RAG generation eval — grounded answers + citations");
+  console.log("RAG generation eval - grounded answers + citations");
   console.log(`File:  ${path.relative(ROOT_DIR, report.file)}`);
   console.log(`Model: ${report.model}`);
   console.log("");
