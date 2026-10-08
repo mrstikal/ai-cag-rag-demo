@@ -55,6 +55,10 @@
 
         <form id="search-form" class="search-form" autocomplete="off">
           <label class="field-label" for="question">Type your question</label>
+          <p class="field-hint">
+            Try more complex queries, such as: "I lost my authenticator device and I also don't have my recovery codes.
+            Can I regain access and what do I need to do?"
+          </p>
           <div class="input-wrap">
             <input
               id="question"
@@ -126,6 +130,10 @@
 
         <form id="answer-form" class="search-form" autocomplete="off">
           <label class="field-label" for="answer-question">Type your question</label>
+          <p class="field-hint">
+            Try more complex queries, such as: "I lost my authenticator device and I also don't have my recovery codes.
+            Can I regain access and what do I need to do?"
+          </p>
           <div class="input-wrap">
             <input
               id="answer-question"
@@ -151,6 +159,53 @@
 
       <section class="panel" id="panel-eval" role="tabpanel" hidden>
         <h1 class="page-title">Eval</h1>
+
+        <div class="eval-help">
+          <p>
+            <strong>top-k</strong> — the final ranking cutoff. <em>Hit@k</em> counts a query as correct if the expected
+            item is within the top k positions, and <em>MRR</em> only credits ranks up to k. Retrieval in the eval is
+            fetched deeper (<code>candidates=20</code>) so <em>Recall@10/@20</em> can be measured independently of k.
+          </p>
+
+          <p><strong>Retrieval — column names</strong></p>
+          <ul>
+            <li>
+              <strong>Retriever</strong> — Dense · Dense+metadata · BM25 · BM25+metadata · Hybrid (RRF) · Hybrid+metadata ·
+              Rerank · Rerank+metadata.
+            </li>
+            <li><strong>Doc H@1 / H@3 / H@5</strong> — share of questions whose expected <em>document</em> is in the top k.</li>
+            <li>
+              <strong>Chunk H@1 / H@3 / H@5</strong> — same, for the expected <em>chunk</em> (only queries that declare
+              one).
+            </li>
+            <li>
+              <strong>MRR@k</strong> — mean reciprocal rank: 1/rank of the first correct result, 0 if not found within k.
+              Higher is better.
+            </li>
+            <li>
+              <strong>Doc / Chunk R@10, R@20</strong> (Candidate recall) — share where the expected item is anywhere in
+              the first 10 / 20 results. This is the candidate pool a reranker can reorder; if it is not here, no
+              reranker can help.
+            </li>
+            <li>
+              <strong>Document rank / Chunk rank tables</strong> — per retriever: <code>#n</code> = rank of the expected
+              item, <code>MISS</code> = not found, <code>–</code> = no expectation for that query. The last column shows
+              the expected document (and chunk).
+            </li>
+          </ul>
+
+          <p><strong>Generation eval — column names</strong></p>
+          <ul>
+            <li><strong>Answerable</strong> — answered <em>and</em> cited the expected source.</li>
+            <li><strong>Unanswerable</strong> — correctly returned <code>insufficient</code> for questions the KB cannot answer.</li>
+            <li><strong>Citations valid</strong> — every cited id exists and every answered response has at least one <code>[Sn]</code>.</li>
+            <li><strong>Source hit</strong> — the expected source document appears among the cited sources.</li>
+            <li>
+              <strong>Table</strong> — id · type (ans/unans) · status (answered/insufficient/error) · src (expected source
+              hit) · facts (expected facts present) · citations (S ids used) · question.
+            </li>
+          </ul>
+        </div>
 
         <div class="eval-toolbar">
           <button type="button" class="submit" id="eval-run">Run evaluation</button>
@@ -188,6 +243,10 @@
 
         <form id="agentic-form" class="search-form" autocomplete="off">
           <label class="field-label" for="agentic-question">Type your question</label>
+          <p class="field-hint">
+            Try more complex queries, such as: "I lost my authenticator device and I also don't have my recovery codes.
+            Can I regain access and what do I need to do?"
+          </p>
           <div class="input-wrap">
             <input
               id="agentic-question"

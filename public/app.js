@@ -1,6 +1,16 @@
 (function () {
   "use strict";
 
+  var NO_ANSWER_TEXT =
+    "We're sorry, but we couldn't find anything for your question. Please contact customer support.";
+
+  function answerText(data) {
+    if (data.status === "answered" && typeof data.answer === "string" && data.answer.trim() !== "") {
+      return data.answer;
+    }
+    return NO_ANSWER_TEXT;
+  }
+
   var form = document.getElementById("search-form");
   var input = document.getElementById("question");
   var clearButton = document.getElementById("clear-input");
@@ -126,7 +136,7 @@
       item.appendChild(
         element("div", "result-meta", hit.documentId + " \u00b7 chunk " + hit.chunkIndex),
       );
-      item.appendChild(element("p", "text", stripLeadingHeading(hit.text)));
+      item.appendChild(renderTextBlock(stripLeadingHeading(hit.text)));
 
       list.appendChild(item);
     });
@@ -473,15 +483,37 @@
     return button;
   }
 
+  function richTextNodes(text, allowCitations) {
+    var fragment = document.createDocumentFragment();
+    text.split(/(\*\*[^*]+\*\*|\[S\d+\])/g).forEach(function (part) {
+      if (!part) return;
+      var bold = /^\*\*([^*]+)\*\*$/.exec(part);
+      if (bold && bold[1]) {
+        fragment.appendChild(element("strong", null, bold[1]));
+        return;
+      }
+      var cite = /^\[(S\d+)\]$/.exec(part);
+      if (cite && cite[1] && allowCitations) {
+        fragment.appendChild(citationBadge(cite[1]));
+        return;
+      }
+      fragment.appendChild(document.createTextNode(part));
+    });
+    return fragment;
+  }
+
   function renderAnswerText(text) {
     var container = document.createElement("div");
     container.className = "answer-text";
-    text.split(/(\[S\d+\])/g).forEach(function (part) {
-      var match = /^\[(S\d+)\]$/.exec(part);
-      if (match && match[1]) container.appendChild(citationBadge(match[1]));
-      else if (part) container.appendChild(document.createTextNode(part));
-    });
+    container.appendChild(richTextNodes(text, true));
     return container;
+  }
+
+  function renderTextBlock(text) {
+    var block = document.createElement("p");
+    block.className = "text";
+    block.appendChild(richTextNodes(text, false));
+    return block;
   }
 
   function renderAnswer(data) {
@@ -493,7 +525,7 @@
     answerMetaEl.appendChild(element("span", "applied-label", "model:"));
     answerMetaEl.appendChild(element("span", "applied-values", data.model));
 
-    answerBodyEl.appendChild(renderAnswerText(data.answer));
+    answerBodyEl.appendChild(renderAnswerText(answerText(data)));
 
     if (data.sources && data.sources.length > 0) {
       answerSourcesTitle.hidden = false;
@@ -517,7 +549,7 @@
         if (source.rerankScore !== undefined && source.rerankScore !== null) {
           li.appendChild(element("div", "source-score", "rerank " + Number(source.rerankScore).toFixed(4)));
         }
-        li.appendChild(element("p", "text", stripLeadingHeading(source.text)));
+        li.appendChild(renderTextBlock(stripLeadingHeading(source.text)));
         list.appendChild(li);
       });
       answerSourcesEl.appendChild(list);
@@ -643,7 +675,7 @@
     agenticMetaEl.appendChild(element("span", "applied-label", "model:"));
     agenticMetaEl.appendChild(element("span", "applied-values", data.model));
 
-    agenticBodyEl.appendChild(renderAnswerText(data.answer));
+    agenticBodyEl.appendChild(renderAnswerText(answerText(data)));
     renderAgenticTrace(data);
 
     if (data.sources && data.sources.length > 0) {
@@ -668,7 +700,7 @@
         if (source.rerankScore !== null && source.rerankScore !== undefined) {
           li.appendChild(element("div", "source-score", "rerank " + Number(source.rerankScore).toFixed(4)));
         }
-        li.appendChild(element("p", "text", stripLeadingHeading(source.text)));
+        li.appendChild(renderTextBlock(stripLeadingHeading(source.text)));
         list.appendChild(li);
       });
       agenticSourcesEl.appendChild(list);

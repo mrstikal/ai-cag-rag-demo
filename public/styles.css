@@ -141,6 +141,13 @@ body {
   letter-spacing: 0.05em;
 }
 
+.field-hint {
+  margin: -4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
 .input-wrap {
   position: relative;
   display: flex;
@@ -400,6 +407,47 @@ body {
 }
 
 /* --- Eval tab ----------------------------------------------------------- */
+.eval-help {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.eval-help p {
+  margin: 0 0 8px;
+}
+
+.eval-help p:last-child {
+  margin-bottom: 0;
+}
+
+.eval-help strong {
+  color: var(--text);
+}
+
+.eval-help ul {
+  margin: 0 0 10px;
+  padding-left: 18px;
+}
+
+.eval-help li {
+  margin-bottom: 3px;
+}
+
+.eval-help code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--accent-dark);
+}
+
 .section-title {
   margin: 28px 0 12px;
   font-size: 16px;
@@ -411,6 +459,7 @@ body {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+  margin-bottom: 18px;
 }
 
 .eval-topk {
@@ -490,7 +539,7 @@ body {
 }
 
 .eval-results {
-  margin-top: 24px;
+  margin-bottom: 30px;
 }
 
 .metrics {
@@ -622,6 +671,7 @@ body {
 /* --- Answer tab --------------------------------------------------------- */
 .answer-text {
   line-height: 1.65;
+  font-size: 1.5rem;
   white-space: pre-wrap;
 }
 
