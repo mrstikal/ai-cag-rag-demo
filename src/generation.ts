@@ -31,14 +31,47 @@ export interface RagAnswer {
   citations: string[];
 }
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+}
+
+export interface Timings {
+  retrievalMs: number;
+  generationMs: number;
+  totalMs: number;
+}
+
 export interface GenerationResult extends RagAnswer {
   sources: ContextSource[];
   model: string;
+  usage?: TokenUsage;
+  timings?: Timings;
+}
+
+export interface GeneratedAnswer {
+  answer: RagAnswer;
+  usage: TokenUsage;
 }
 
 export interface AnswerGenerator {
   readonly name: string;
-  generate(question: string, sources: ContextSource[]): Promise<RagAnswer>;
+  generate(question: string, sources: ContextSource[]): Promise<GeneratedAnswer>;
+}
+
+export function usageFrom(response: {
+  usage?: {
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+    input_tokens_details?: { cached_tokens?: number | null } | null;
+  } | null;
+}): TokenUsage {
+  return {
+    inputTokens: response.usage?.input_tokens ?? 0,
+    outputTokens: response.usage?.output_tokens ?? 0,
+    cachedTokens: response.usage?.input_tokens_details?.cached_tokens ?? 0,
+  };
 }
 
 /** Stable, version-aware citation identity, e.g. refunds-2026:v1:chunk-1 */
@@ -125,7 +158,7 @@ class OpenAIGenerator implements AnswerGenerator {
     });
   }
 
-  async generate(question: string, sources: ContextSource[]): Promise<RagAnswer> {
+  async generate(question: string, sources: ContextSource[]): Promise<GeneratedAnswer> {
     const sourceIds = sources.map((source) => source.sourceId);
     const schema = {
       type: "object",
@@ -154,7 +187,7 @@ class OpenAIGenerator implements AnswerGenerator {
       },
     });
 
-    return JSON.parse(response.output_text) as RagAnswer;
+    return { answer: JSON.parse(response.output_text) as RagAnswer, usage: usageFrom(response) };
   }
 }
 
@@ -164,14 +197,15 @@ export function getGenerator(): AnswerGenerator {
   return (generator ??= new OpenAIGenerator());
 }
 
-export function validateCitations(answer: RagAnswer, allowedSources: Set<string>): void {
+export function validateCitations(answer: RagAnswer, allowedSources: Set<string>, markerPrefix = "S"): void {
   for (const citation of answer.citations) {
     if (!allowedSources.has(citation)) {
       throw new Error(`Invalid citation: ${citation}`);
     }
   }
 
-  const markers = [...answer.answer.matchAll(/\[(S\d+)\]/g)].map((match) => match[1] ?? "");
+  const markerRegex = new RegExp(`\\[(${markerPrefix}\\d+)\\]`, "g");
+  const markers = [...answer.answer.matchAll(markerRegex)].map((match) => match[1] ?? "");
   for (const marker of markers) {
     if (!allowedSources.has(marker)) {
       throw new Error(`Unknown source marker: ${marker}`);
@@ -194,12 +228,14 @@ export interface AnswerOptions {
  * earlier steps; this only adds generation on top of the top-k chunks.
  */
 export async function answerQuestion(question: string, options: AnswerOptions = {}): Promise<GenerationResult> {
+  const start = Date.now();
   const results = await search({
     query: question,
     limit: options.topK ?? config.generation.topK,
     retriever: "rerank",
     filters: options.filters,
   });
+  const retrievalMs = Date.now() - start;
 
   const sources = buildContext(results.map(toRetrievedChunk));
   const gen = getGenerator();
@@ -211,12 +247,22 @@ export async function answerQuestion(question: string, options: AnswerOptions = 
       citations: [],
       sources: [],
       model: gen.name,
+      usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+      timings: { retrievalMs, generationMs: 0, totalMs: Date.now() - start },
     };
   }
 
-  const answer = await gen.generate(question, sources);
+  const generationStart = Date.now();
+  const { answer, usage } = await gen.generate(question, sources);
+  const generationMs = Date.now() - generationStart;
   validateCitations(answer, new Set(sources.map((source) => source.sourceId)));
-  return { ...answer, sources, model: gen.name };
+  return {
+    ...answer,
+    sources,
+    model: gen.name,
+    usage,
+    timings: { retrievalMs, generationMs, totalMs: Date.now() - start },
+  };
 }
 
 export { SYSTEM_PROMPT, buildUserPrompt };

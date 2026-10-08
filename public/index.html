@@ -17,19 +17,27 @@
         </p>
         <ul class="tab-legend">
           <li>
-            <strong>Search</strong> - retrieval only. Dense (cosine), BM25, hybrid RRF, or Voyage reranking over the
+            <strong>Search</strong> — retrieval only. Dense (cosine), BM25, hybrid RRF, or Voyage reranking over the
             knowledge base. Shows the ranked chunks, scores, and (for rerank) the dense/BM25 ranks. No LLM.
           </li>
           <li>
-            <strong>Answer</strong> - one grounded RAG pass: the reranked top 5 chunks → LLM (structured output) →
-            answer with validated <code>[S#]</code> citations and the source list.
+            <strong>RAG answer</strong> — one grounded retrieval-augmented pass: the reranked top 5 chunks → LLM
+            (structured output) → answer with validated <code>[S#]</code> citations and the source list.
           </li>
           <li>
-            <strong>Agentic</strong> - like Answer, but the model may call <code>search_kb</code> (bounded) when the
+            <strong>CAG answer</strong> — Cache-Augmented Generation: no retrieval at query time, the entire knowledge
+            base travels in a stable cached prefix. Same model and output contract, citations are <code>[D#]</code>.
+          </li>
+          <li>
+            <strong>Agentic</strong> — like RAG answer, but the model may call <code>search_kb</code> (bounded) when the
             sources are insufficient; shows the retrieval trace.
           </li>
           <li>
-            <strong>Eval</strong> - evaluation sets. Retrieval: Hit@k, Recall@k, MRR per retriever, plus recall of the
+            <strong>Compare</strong> — the same question through RAG and CAG side by side, with latency, token usage,
+            source counts and answers.
+          </li>
+          <li>
+            <strong>Eval</strong> — evaluation sets. Retrieval: Hit@k, Recall@k, MRR per retriever, plus recall of the
             expected chunk. Generation: answerable/unanswerable accuracy, citation validity, expected source hit.
           </li>
         </ul>
@@ -40,10 +48,16 @@
           Search
         </button>
         <button class="tab" type="button" role="tab" data-tab="answer" aria-selected="false">
-          Answer
+          RAG answer
+        </button>
+        <button class="tab" type="button" role="tab" data-tab="cag" aria-selected="false">
+          CAG answer
         </button>
         <button class="tab" type="button" role="tab" data-tab="agentic" aria-selected="false">
           Agentic
+        </button>
+        <button class="tab" type="button" role="tab" data-tab="compare" aria-selected="false">
+          Compare
         </button>
         <button class="tab" type="button" role="tab" data-tab="eval" aria-selected="false">
           Eval
@@ -154,6 +168,42 @@
           <div class="answer-body" id="answer-tab-body"></div>
           <h3 class="section-title" id="answer-sources-title" hidden>Sources</h3>
           <div id="answer-sources"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-cag" role="tabpanel" hidden>
+        <h1 class="page-title">CAG answer</h1>
+        <p class="muted cag-note">
+          Cache-Augmented Generation: no retrieval at query time — the entire knowledge base travels in a stable
+          prefix. Same model and output contract as RAG.
+        </p>
+
+        <form id="cag-form" class="search-form" autocomplete="off">
+          <label class="field-label" for="cag-question">Type your question</label>
+          <p class="field-hint">
+            Try more complex queries, such as: "I lost my authenticator device and I also don't have my recovery codes.
+            Can I regain access and what do I need to do?"
+          </p>
+          <div class="input-wrap">
+            <input
+              id="cag-question"
+              name="cag-question"
+              type="text"
+              placeholder="e.g. What does ERR-C91 mean?"
+            />
+            <button type="button" class="clear-input" id="cag-clear" aria-label="Clear question" hidden>
+              &times;
+            </button>
+          </div>
+          <button type="submit" class="submit" id="cag-submit">Get CAG answer</button>
+        </form>
+
+        <div class="answer" id="cag-panel">
+          <div class="applied-filters" id="cag-meta"></div>
+          <h2 class="answer-title">Your answer</h2>
+          <div class="answer-body" id="cag-body"></div>
+          <h3 class="section-title" id="cag-sources-title" hidden>Sources</h3>
+          <div id="cag-sources"></div>
         </div>
       </section>
 
@@ -268,6 +318,40 @@
           <div id="agentic-trace"></div>
           <h3 class="section-title" id="agentic-sources-title" hidden>Sources</h3>
           <div id="agentic-sources"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-compare" role="tabpanel" hidden>
+        <h1 class="page-title">Compare RAG vs CAG</h1>
+        <p class="muted cag-note">
+          The same question through both paths, with the same generation model. RAG retrieves top-5 chunks; CAG answers
+          from the whole knowledge base in a cached prefix.
+        </p>
+
+        <form id="compare-form" class="search-form" autocomplete="off">
+          <label class="field-label" for="compare-question">Type your question</label>
+          <p class="field-hint">
+            Try more complex queries, such as: "I lost my authenticator device and I also don't have my recovery codes.
+            Can I regain access and what do I need to do?"
+          </p>
+          <div class="input-wrap">
+            <input
+              id="compare-question"
+              name="compare-question"
+              type="text"
+              placeholder="e.g. How many days do I have to request a refund?"
+            />
+            <button type="button" class="clear-input" id="compare-clear" aria-label="Clear question" hidden>
+              &times;
+            </button>
+          </div>
+          <button type="submit" class="submit" id="compare-submit">Compare</button>
+        </form>
+
+        <div class="answer" id="compare-panel">
+          <div class="answer-body" id="compare-body">
+            <p class="state">Not run yet.</p>
+          </div>
         </div>
       </section>
     </div>

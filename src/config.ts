@@ -22,6 +22,12 @@ function readNumber(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function readBool(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  return ["1", "true", "yes", "on"].includes(raw.trim().toLowerCase());
+}
+
 export type EmbeddingsProvider = "openai" | "mock";
 export type RerankerProvider = "local" | "voyage" | "cohere" | "fallback";
 
@@ -68,6 +74,10 @@ export interface AppConfig {
     model: string;
     topK: number;
   };
+  cag: {
+    model: string;
+    prewarm: boolean;
+  };
   agent: {
     maxExtraSearches: number;
     maxChunks: number;
@@ -89,6 +99,8 @@ function readRerankerProvider(): RerankerProvider {
   if (raw === "local" || raw === "voyage" || raw === "cohere" || raw === "fallback") return raw;
   throw new Error(`Unknown RERANKER_PROVIDER "${raw}". Use "local", "voyage", "cohere" or "fallback".`);
 }
+
+const generationModel = readString("GENERATION_MODEL", "gpt-5.6-terra");
 
 export const config: AppConfig = {
   embeddings: {
@@ -130,8 +142,12 @@ export const config: AppConfig = {
     },
   },
   generation: {
-    model: readString("GENERATION_MODEL", "gpt-4o-mini"),
+    model: generationModel,
     topK: readNumber("GENERATION_TOP_K", 5),
+  },
+  cag: {
+    model: readString("CAG_MODEL", generationModel),
+    prewarm: readBool("CAG_PREWARM", false),
   },
   agent: {
     maxExtraSearches: readNumber("AGENT_MAX_SEARCHES", 2),

@@ -3,6 +3,7 @@ import http from "node:http";
 import path from "node:path";
 import { config, ROOT_DIR } from "./config";
 import { answerQuestionAgentic } from "./agent";
+import { cagAnswer, cagPrewarm } from "./cag";
 import { buildReport, DEFAULT_EVAL_FILE, loadEvalQueries } from "./evaluation";
 import { answerQuestion, type ContextSource } from "./generation";
 import { DEFAULT_GEN_FILE, loadGenerationQuestions, runGenerationEval } from "./generation-eval";
@@ -265,6 +266,115 @@ async function handleGenerationEval(res: http.ServerResponse): Promise<void> {
   }
 }
 
+async function readQuery(body: unknown): Promise<string | undefined> {
+  const query =
+    typeof body === "object" && body !== null && "query" in body
+      ? (body as { query?: unknown }).query
+      : undefined;
+  return typeof query === "string" && query.trim() !== "" ? query.trim() : undefined;
+}
+
+async function handleCag(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  let body: unknown;
+  try {
+    body = await readJsonBody(req);
+  } catch (error) {
+    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid JSON body" });
+    return;
+  }
+
+  const query = await readQuery(body);
+  if (!query) {
+    sendJson(res, 400, { error: "Query is required" });
+    return;
+  }
+
+  try {
+    const result = await cagAnswer(query);
+    sendJson(res, 200, {
+      query,
+      status: result.status,
+      answer: result.answer,
+      citations: result.citations,
+      model: result.model,
+      contextDocuments: result.contextDocuments,
+      contextTokens: result.contextTokens,
+      usage: result.usage,
+      timings: result.timings,
+      sources: result.sources.map((source) => ({
+        sourceId: source.sourceId,
+        documentId: source.documentId,
+        version: source.version,
+        title: source.title,
+        status: source.status,
+        text: source.text,
+      })),
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : "CAG answer failed" });
+  }
+}
+
+async function handleCompare(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  let body: unknown;
+  try {
+    body = await readJsonBody(req);
+  } catch (error) {
+    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid JSON body" });
+    return;
+  }
+
+  const query = await readQuery(body);
+  if (!query) {
+    sendJson(res, 400, { error: "Query is required" });
+    return;
+  }
+
+  const filters = readFilters(body);
+
+  try {
+    // Sequential so the two latencies/caches are not distorted by contention.
+    const rag = await answerQuestion(query, { filters });
+    const cag = await cagAnswer(query);
+    sendJson(res, 200, {
+      query,
+      rag: {
+        status: rag.status,
+        answer: rag.answer,
+        citations: rag.citations,
+        model: rag.model,
+        usage: rag.usage,
+        timings: rag.timings,
+        sourceCount: rag.sources.length,
+        sources: mapSources(rag.sources),
+      },
+      cag: {
+        status: cag.status,
+        answer: cag.answer,
+        citations: cag.citations,
+        model: cag.model,
+        usage: cag.usage,
+        timings: cag.timings,
+        contextDocuments: cag.contextDocuments,
+        contextTokens: cag.contextTokens,
+        sourceCount: cag.sources.length,
+        sources: cag.sources,
+      },
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : "Compare failed" });
+  }
+}
+
+async function handleCagPrewarm(_req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  try {
+    const result = await cagPrewarm();
+    sendJson(res, 200, { status: "warmed", ...result });
+  } catch (error) {
+    sendJson(res, 500, { error: error instanceof Error ? error.message : "Prewarm failed" });
+  }
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
@@ -280,6 +390,21 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "POST" && url.pathname === "/api/agentic") {
     void handleAgentic(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/cag") {
+    void handleCag(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/cag/prewarm") {
+    void handleCagPrewarm(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/compare") {
+    void handleCompare(req, res);
     return;
   }
 

@@ -14,6 +14,9 @@ The pipeline is implemented incrementally and each step is measurable:
 dense retrieval → metadata filtering → BM25 → hybrid (RRF) → reranking → LLM generation + citations → bounded agentic retrieval
 ```
 
+The same knowledge base and eval sets also drive a **CAG (Cache-Augmented Generation)** branch, so you
+can compare RAG and CAG on identical data with the same generation model — see the **Compare** tab.
+
 ---
 
 ## Table of contents
@@ -166,16 +169,46 @@ LLM decides (Responses API function tool)
 The application owns the base filters; the tool can only **narrow** by `category`, never bypass
 tenant/ACL/status/locale. The initial retrieval is always deterministic.
 
-### 2.5 The web UI
+### 2.5 The CAG branch
+
+**Cache-Augmented Generation (CAG)** does no retrieval at query time. The entire knowledge base is
+serialised once into a deterministic, byte-stable prefix and sent with every request; the provider's
+prompt cache is expected to absorb the repeated prefix.
+
+```
+CAG (query time)
+  question ──►  stable prefix = SYSTEM_INSTRUCTIONS + whole KB (<DOCUMENT source="D#"> …)  ──►  LLM  ──►  answer + [D#] citations
+                (no embedding, no Qdrant, no reranker)
+
+RAG (for comparison)          CAG
+  dense ∪ bm25 → rerank        no retrieval
+  top-5 chunks                 whole KB in a cached prefix
+  citations [S#]               citations [D#]
+  same generation model        same generation model
+```
+
+`src/cag.ts` builds the canonical KB once (`buildCanonicalKnowledgeBase`, documents ordered by
+`document_id` so the prefix is stable), reuses the same structured-output schema and
+`validateCitations` (with the `D` marker prefix), and reports `usage` (input / cached / output tokens)
+and timings. `cagPrewarm()` is a best-effort warm-up. The **Compare** tab runs both paths on the same
+question, sequentially, and shows latency, token usage and source counts side by side.
+
+> Note: prompt caching (and thus the `cached tokens` metric) depends on the provider/model. The demo
+> defaults to `gpt-5.6-terra` (long context + prompt caching). With a non-caching model
+> `cached tokens` stays `0`. Set `CAG_MODEL` (defaults to `GENERATION_MODEL`) accordingly.
+
+### 2.6 The web UI
 
 | Tab | What it shows |
 |---|---|
 | **Search** | Retrieval only (no LLM): ranked chunks, scores, and dense/BM25 ranks for the rerank retriever. Filter controls + applied-filters line. |
-| **Answer** | One grounded RAG pass: answer with clickable `[S#]` citation badges and the source list. |
-| **Agentic** | Like Answer, plus the retrieval trace (initial retrieval, `search_kb` steps), bounded. |
+| **RAG answer** | One grounded RAG pass: answer with clickable `[S#]` citation badges and the source list. |
+| **CAG answer** | Cache-Augmented Generation: no retrieval — the whole KB travels in a stable prefix (citations `[D#]`), with context/token/timing metrics. |
+| **Agentic** | Like RAG answer, plus the retrieval trace (initial retrieval, `search_kb` steps), bounded. |
+| **Compare** | The same question through RAG and CAG side by side: status, retrieval/LLM/total latency, input/cached/context tokens, source counts, answers and citations. |
 | **Eval** | Retrieval eval (Hit@k, Recall@k, MRR per retriever) and generation eval (answerable/unanswerable accuracy, citation validity, expected source hit). |
 
-### 2.6 Stage → code → evaluation map
+### 2.7 Stage → code → evaluation map
 
 | Stage | Code | Eval |
 |---|---|---|
@@ -186,9 +219,10 @@ tenant/ACL/status/locale. The initial retrieval is always deterministic.
 | Reranking | `src/reranker.ts`, `reranker/app.py` | `npm run eval` |
 | Generation + citations | `src/generation.ts` | `npm run eval:gen` |
 | Agentic | `src/agent.ts` | (UI trace) |
-| Web API/UI | `src/server.ts`, `public/` | - |
+| CAG / RAG-vs-CAG | `src/cag.ts` | Compare tab |
+| Web API/UI | `src/server.ts`, `public/` | — |
 
-### 2.7 Source layout
+### 2.8 Source layout
 
 ```
 rag-demo/
@@ -216,6 +250,7 @@ rag-demo/
     ├── search.ts             # retrieval CLI
     ├── evaluate.ts           # retrieval eval CLI
     ├── generation.ts         # context builder, structured generator, citation validation
+    ├── cag.ts                # canonical KB + Cache-Augmented Generation (no retrieval)
     ├── generation-eval.ts    # generation eval core
     ├── evaluate-generation.ts# generation eval CLI
     ├── agent.ts              # bounded agentic retrieval
@@ -294,8 +329,10 @@ npm run web      # http://localhost:3000
 | `RERANK_TIMEOUT_MS` | `120000` | reranker request timeout |
 | `VOYAGE_API_KEY` / `VOYAGE_BASE_URL` / `VOYAGE_RERANK_MODEL` | – / `https://api.voyageai.com` / `rerank-3-lite` | Voyage reranker |
 | `COHERE_API_KEY` / `COHERE_BASE_URL` / `COHERE_RERANK_MODEL` | – / `https://api.cohere.com` / `rerank-v4.0-fast` | Cohere reranker |
-| `GENERATION_MODEL` | `gpt-4o-mini` | answer generation model |
+| `GENERATION_MODEL` | `gpt-5.6-terra` | answer generation model (used by RAG, CAG and agentic) |
 | `GENERATION_TOP_K` | `5` | chunks passed to the generator |
+| `CAG_MODEL` | = `GENERATION_MODEL` | CAG generation model (keep equal to `GENERATION_MODEL` for a fair comparison) |
+| `CAG_PREWARM` | `false` | best-effort cache warm-up on demand |
 | `AGENT_MAX_SEARCHES` | `2` | max extra `search_kb` calls |
 | `AGENT_MAX_CHUNKS` | `12` | max unique chunks accumulated |
 | `AGENT_SEARCH_RESULTS` | `5` | results per agent search |
@@ -390,6 +427,9 @@ HTTP endpoints:
 | `GET` | `/` | the UI |
 | `POST` | `/api/search` | `{ query, retriever?, filters? }` → ranked chunks |
 | `POST` | `/api/answer` | `{ query, filters? }` → `{ status, answer, citations, sources }` |
+| `POST` | `/api/cag` | `{ query }` → `{ status, answer, citations, sources, usage, timings, contextTokens }` |
+| `POST` | `/api/cag/prewarm` | warm the CAG prefix cache |
+| `POST` | `/api/compare` | `{ query, filters? }` → both RAG and CAG results with latency + token usage |
 | `POST` | `/api/agentic` | `{ query, filters?, forceSearch? }` → answer + retrieval trace |
 | `GET` | `/api/eval/queries` | retrieval eval set |
 | `POST` | `/api/eval` | `{ topK? }` → retrieval eval report |

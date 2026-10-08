@@ -110,6 +110,7 @@ export async function answerQuestionAgentic(
 ): Promise<AgenticResult> {
   const baseFilters = options.filters;
   const forceSearch = options.forceSearch === true;
+  const startAll = Date.now();
   const chunks = new Map<string, RetrievedChunk>();
   const searches: AgentSearchStep[] = [];
 
@@ -161,10 +162,24 @@ export async function answerQuestionAgentic(
       citations: [],
       sources: [],
       ...base,
+      usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
+      timings: { retrievalMs: Date.now() - startAll, generationMs: 0, totalMs: Date.now() - startAll },
     };
   }
 
-  const answer = await gen.generate(question, sources);
+  const generationStart = Date.now();
+  const { answer, usage } = await gen.generate(question, sources);
+  const generationMs = Date.now() - generationStart;
   validateCitations(answer, new Set(sources.map((source) => source.sourceId)));
-  return { ...answer, sources, ...base };
+  return {
+    ...answer,
+    sources,
+    ...base,
+    usage,
+    timings: {
+      retrievalMs: generationStart - startAll,
+      generationMs,
+      totalMs: Date.now() - startAll,
+    },
+  };
 }

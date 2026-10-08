@@ -479,20 +479,20 @@
     button.type = "button";
     button.className = "cite";
     button.dataset.source = sourceId;
-    button.textContent = sourceId.replace(/^S/, "");
+    button.textContent = sourceId;
     return button;
   }
 
   function richTextNodes(text, allowCitations) {
     var fragment = document.createDocumentFragment();
-    text.split(/(\*\*[^*]+\*\*|\[S\d+\])/g).forEach(function (part) {
+    text.split(/(\*\*[^*]+\*\*|\[[SD]\d+\])/g).forEach(function (part) {
       if (!part) return;
       var bold = /^\*\*([^*]+)\*\*$/.exec(part);
       if (bold && bold[1]) {
         fragment.appendChild(element("strong", null, bold[1]));
         return;
       }
-      var cite = /^\[(S\d+)\]$/.exec(part);
+      var cite = /^\[([SD]\d+)\]$/.exec(part);
       if (cite && cite[1] && allowCitations) {
         fragment.appendChild(citationBadge(cite[1]));
         return;
@@ -770,6 +770,230 @@
         }, 1200);
       }
     }
+  });
+
+  // ====================== Tab: CAG ========================================
+  var cagForm = document.getElementById("cag-form");
+  var cagInput = document.getElementById("cag-question");
+  var cagClearBtn = document.getElementById("cag-clear");
+  var cagSubmitBtn = document.getElementById("cag-submit");
+  var cagMetaEl = document.getElementById("cag-meta");
+  var cagBodyEl = document.getElementById("cag-body");
+  var cagSourcesEl = document.getElementById("cag-sources");
+  var cagSourcesTitle = document.getElementById("cag-sources-title");
+
+  function clearCag() {
+    cagBodyEl.replaceChildren();
+    cagSourcesEl.replaceChildren();
+    cagMetaEl.replaceChildren();
+    cagSourcesTitle.hidden = true;
+  }
+
+  function metaItem(container, label, value) {
+    container.appendChild(element("span", "applied-label", label));
+    container.appendChild(element("span", "applied-values", value));
+  }
+
+  function renderCag(data) {
+    clearCag();
+    metaItem(cagMetaEl, "status:", data.status);
+    metaItem(cagMetaEl, "model:", data.model);
+    metaItem(cagMetaEl, "context:", data.contextDocuments + " docs / ~" + data.contextTokens + " tok");
+    if (data.usage) {
+      metaItem(cagMetaEl, "tokens:", data.usage.inputTokens + " in / " + data.usage.cachedTokens + " cached / " + data.usage.outputTokens + " out");
+    }
+    if (data.timings) {
+      metaItem(cagMetaEl, "llm:", data.timings.generationMs + " ms");
+    }
+
+    cagBodyEl.appendChild(renderAnswerText(answerText(data)));
+
+    if (data.sources && data.sources.length > 0) {
+      cagSourcesTitle.hidden = false;
+      var list = document.createElement("ol");
+      list.className = "source-list";
+      data.sources.forEach(function (source) {
+        var li = document.createElement("li");
+        li.className = "source-card";
+        li.id = "cag-source-" + source.sourceId;
+        var head = document.createElement("div");
+        head.className = "source-head";
+        head.appendChild(element("span", "cite-static", source.sourceId));
+        head.appendChild(element("span", "source-title", source.title));
+        var badge = element("span", "badge", source.status);
+        if (source.status !== "active") badge.classList.add("is-obsolete");
+        head.appendChild(badge);
+        li.appendChild(head);
+        li.appendChild(element("div", "result-meta", source.documentId + " \u00b7 v" + source.version));
+        li.appendChild(renderTextBlock(stripLeadingHeading(source.text)));
+        list.appendChild(li);
+      });
+      cagSourcesEl.appendChild(list);
+    }
+  }
+
+  cagInput.addEventListener("input", function () {
+    cagClearBtn.hidden = cagInput.value.length === 0;
+    if (cagInput.value.trim() === "") clearCag();
+  });
+  cagClearBtn.addEventListener("click", function () {
+    cagInput.value = "";
+    cagClearBtn.hidden = true;
+    clearCag();
+    cagInput.focus();
+  });
+  cagForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var question = cagInput.value.trim();
+    if (question === "") {
+      clearCag();
+      return;
+    }
+    cagSubmitBtn.disabled = true;
+    clearCag();
+    cagBodyEl.appendChild(element("p", "state", "Generating from the full knowledge base\u2026"));
+    fetch("/api/cag", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: question }),
+    })
+      .then(function (response) {
+        return response
+          .json()
+          .catch(function () {
+            return {};
+          })
+          .then(function (data) {
+            if (!response.ok) throw new Error(data.error || "Request failed (" + response.status + ")");
+            return data;
+          });
+      })
+      .then(function (data) {
+        renderCag(data);
+      })
+      .catch(function (error) {
+        clearCag();
+        cagBodyEl.appendChild(element("p", "error", error.message || "CAG answer failed"));
+      })
+      .then(function () {
+        cagSubmitBtn.disabled = false;
+      });
+  });
+  cagBodyEl.addEventListener("click", function (event) {
+    var target = event.target;
+    if (target && target.classList && target.classList.contains("cite")) {
+      var card = document.getElementById("cag-source-" + target.dataset.source);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add("is-highlight");
+        setTimeout(function () {
+          card.classList.remove("is-highlight");
+        }, 1200);
+      }
+    }
+  });
+
+  // ====================== Tab: compare ====================================
+  var compareForm = document.getElementById("compare-form");
+  var compareInput = document.getElementById("compare-question");
+  var compareClearBtn = document.getElementById("compare-clear");
+  var compareSubmitBtn = document.getElementById("compare-submit");
+  var compareBodyEl = document.getElementById("compare-body");
+
+  function renderCompare(data) {
+    compareBodyEl.replaceChildren();
+    var grid = document.createElement("div");
+    grid.className = "compare-grid";
+
+    [
+      ["RAG", data.rag],
+      ["CAG", data.cag],
+    ].forEach(function (pair) {
+      var name = pair[0];
+      var value = pair[1];
+      var col = document.createElement("div");
+      col.className = "compare-col";
+      col.appendChild(element("div", "compare-head", name));
+
+      var metrics = document.createElement("ul");
+      metrics.className = "compare-metrics";
+      function row(label, text) {
+        var li = document.createElement("li");
+        li.appendChild(element("span", "cm-label", label));
+        li.appendChild(element("span", "cm-value", String(text)));
+        metrics.appendChild(li);
+      }
+      row("status", value.status);
+      row("retrieval", (value.timings ? value.timings.retrievalMs : 0) + " ms");
+      row("LLM", (value.timings ? value.timings.generationMs : 0) + " ms");
+      row("total", (value.timings ? value.timings.totalMs : 0) + " ms");
+      row("input tokens", value.usage ? value.usage.inputTokens : 0);
+      row("cached tokens", value.usage ? value.usage.cachedTokens : 0);
+      if (value.contextTokens) row("context tokens", value.contextTokens);
+      row(name === "RAG" ? "sources (chunks)" : "sources (docs)", value.sourceCount);
+      col.appendChild(metrics);
+
+      col.appendChild(element("div", "compare-label", "answer"));
+      var answer = document.createElement("div");
+      answer.className = "answer-text";
+      answer.appendChild(richTextNodes(answerText(value), true));
+      col.appendChild(answer);
+
+      col.appendChild(element("div", "compare-label", "citations"));
+      col.appendChild(element("div", "compare-citations", (value.citations || []).join(" ") || "\u2013"));
+
+      grid.appendChild(col);
+    });
+
+    compareBodyEl.appendChild(grid);
+  }
+
+  compareInput.addEventListener("input", function () {
+    compareClearBtn.hidden = compareInput.value.length === 0;
+    if (compareInput.value.trim() === "") compareBodyEl.replaceChildren();
+  });
+  compareClearBtn.addEventListener("click", function () {
+    compareInput.value = "";
+    compareClearBtn.hidden = true;
+    compareBodyEl.replaceChildren();
+    compareInput.focus();
+  });
+  compareForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var question = compareInput.value.trim();
+    if (question === "") {
+      compareBodyEl.replaceChildren();
+      return;
+    }
+    compareSubmitBtn.disabled = true;
+    compareBodyEl.replaceChildren();
+    compareBodyEl.appendChild(element("p", "state", "Running RAG and CAG\u2026"));
+    fetch("/api/compare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: question }),
+    })
+      .then(function (response) {
+        return response
+          .json()
+          .catch(function () {
+            return {};
+          })
+          .then(function (data) {
+            if (!response.ok) throw new Error(data.error || "Request failed (" + response.status + ")");
+            return data;
+          });
+      })
+      .then(function (data) {
+        renderCompare(data);
+      })
+      .catch(function (error) {
+        compareBodyEl.replaceChildren();
+        compareBodyEl.appendChild(element("p", "error", error.message || "Compare failed"));
+      })
+      .then(function () {
+        compareSubmitBtn.disabled = false;
+      });
   });
 
   // ====================== Generation eval =================================
