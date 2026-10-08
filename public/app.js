@@ -466,6 +466,7 @@
   var answerBodyEl = document.getElementById("answer-tab-body");
   var answerSourcesEl = document.getElementById("answer-sources");
   var answerSourcesTitle = document.getElementById("answer-sources-title");
+  var answerRequestSeq = 0;
 
   function clearAnswerTab() {
     answerBodyEl.replaceChildren();
@@ -578,6 +579,7 @@
     answerSubmitBtn.disabled = true;
     clearAnswerTab();
     answerBodyEl.appendChild(element("p", "state", "Generating\u2026"));
+    var requestId = ++answerRequestSeq;
 
     fetch("/api/answer", {
       method: "POST",
@@ -596,9 +598,11 @@
           });
       })
       .then(function (data) {
+        if (requestId !== answerRequestSeq) return;
         renderAnswer(data);
       })
       .catch(function (error) {
+        if (requestId !== answerRequestSeq) return;
         clearAnswerTab();
         answerBodyEl.appendChild(element("p", "error", error.message || "Answer failed"));
       })
@@ -631,6 +635,7 @@
   var agenticTraceEl = document.getElementById("agentic-trace");
   var agenticSourcesEl = document.getElementById("agentic-sources");
   var agenticSourcesTitle = document.getElementById("agentic-sources-title");
+  var agenticRequestSeq = 0;
 
   function clearAgentic() {
     agenticBodyEl.replaceChildren();
@@ -729,6 +734,7 @@
     agenticSubmitBtn.disabled = true;
     clearAgentic();
     agenticBodyEl.appendChild(element("p", "state", "Running agentic answer\u2026"));
+    var requestId = ++agenticRequestSeq;
 
     fetch("/api/agentic", {
       method: "POST",
@@ -747,9 +753,11 @@
           });
       })
       .then(function (data) {
+        if (requestId !== agenticRequestSeq) return;
         renderAgentic(data);
       })
       .catch(function (error) {
+        if (requestId !== agenticRequestSeq) return;
         clearAgentic();
         agenticBodyEl.appendChild(element("p", "error", error.message || "Agentic answer failed"));
       })
@@ -781,6 +789,7 @@
   var cagBodyEl = document.getElementById("cag-body");
   var cagSourcesEl = document.getElementById("cag-sources");
   var cagSourcesTitle = document.getElementById("cag-sources-title");
+  var cagRequestSeq = 0;
 
   function clearCag() {
     cagBodyEl.replaceChildren();
@@ -852,6 +861,7 @@
     cagSubmitBtn.disabled = true;
     clearCag();
     cagBodyEl.appendChild(element("p", "state", "Generating from the full knowledge base\u2026"));
+    var requestId = ++cagRequestSeq;
     fetch("/api/cag", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -869,9 +879,11 @@
           });
       })
       .then(function (data) {
+        if (requestId !== cagRequestSeq) return;
         renderCag(data);
       })
       .catch(function (error) {
+        if (requestId !== cagRequestSeq) return;
         clearCag();
         cagBodyEl.appendChild(element("p", "error", error.message || "CAG answer failed"));
       })
@@ -899,6 +911,7 @@
   var compareClearBtn = document.getElementById("compare-clear");
   var compareSubmitBtn = document.getElementById("compare-submit");
   var compareBodyEl = document.getElementById("compare-body");
+  var compareRequestSeq = 0;
 
   function renderCompare(data) {
     compareBodyEl.replaceChildren();
@@ -936,7 +949,8 @@
       col.appendChild(element("div", "compare-label", "answer"));
       var answer = document.createElement("div");
       answer.className = "answer-text";
-      answer.appendChild(richTextNodes(answerText(value), true));
+      // No source cards exist in Compare, so render citation markers as plain text.
+      answer.appendChild(richTextNodes(answerText(value), false));
       col.appendChild(answer);
 
       col.appendChild(element("div", "compare-label", "citations"));
@@ -968,6 +982,7 @@
     compareSubmitBtn.disabled = true;
     compareBodyEl.replaceChildren();
     compareBodyEl.appendChild(element("p", "state", "Running RAG and CAG\u2026"));
+    var requestId = ++compareRequestSeq;
     fetch("/api/compare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -985,9 +1000,11 @@
           });
       })
       .then(function (data) {
+        if (requestId !== compareRequestSeq) return;
         renderCompare(data);
       })
       .catch(function (error) {
+        if (requestId !== compareRequestSeq) return;
         compareBodyEl.replaceChildren();
         compareBodyEl.appendChild(element("p", "error", error.message || "Compare failed"));
       })

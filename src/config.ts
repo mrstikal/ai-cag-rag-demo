@@ -15,11 +15,11 @@ function readOptionalString(name: string): string | undefined {
   return value === undefined || value.trim() === "" ? undefined : value.trim();
 }
 
-function readNumber(name: string, fallback: number): number {
+function readNumber(name: string, fallback: number, min = 1): number {
   const raw = process.env[name];
   if (raw === undefined || raw.trim() === "") return fallback;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  return Number.isInteger(parsed) && parsed >= min ? parsed : fallback;
 }
 
 function readBool(name: string, fallback: boolean): boolean {
@@ -85,6 +85,7 @@ export interface AppConfig {
   };
   server: {
     port: number;
+    host: string;
   };
 }
 
@@ -150,11 +151,12 @@ export const config: AppConfig = {
     prewarm: readBool("CAG_PREWARM", false),
   },
   agent: {
-    maxExtraSearches: readNumber("AGENT_MAX_SEARCHES", 2),
+    maxExtraSearches: readNumber("AGENT_MAX_SEARCHES", 2, 0),
     maxChunks: readNumber("AGENT_MAX_CHUNKS", 12),
     perSearch: readNumber("AGENT_SEARCH_RESULTS", 5),
   },
   server: {
     port: readNumber("PORT", 3000),
+    host: readString("HOST", "127.0.0.1"),
   },
 };

@@ -65,6 +65,7 @@ function printReport(report: GenReport): void {
   console.log(`Unanswerable accuracy:${m.unanswerableCorrect}/${m.unanswerableTotal}`);
   console.log(`Citation validity:    ${m.citationValid}/${m.total}`);
   console.log(`Expected source hit:  ${m.expectedSourceHit}/${m.answerableTotal}`);
+  console.log(`Expected facts:       ${m.factsCorrect}/${m.answerableTotal}`);
   if (m.errors > 0) console.log(`Errors:               ${m.errors}`);
 }
 

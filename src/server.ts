@@ -28,18 +28,43 @@ function sendJson(res: http.ServerResponse, status: number, body: unknown): void
   res.end(payload);
 }
 
+class BodyTooLargeError extends Error {}
+
 async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     const buffer = chunk as Buffer;
     size += buffer.length;
-    if (size > MAX_BODY_BYTES) throw new Error("Request body too large");
+    if (size > MAX_BODY_BYTES) throw new BodyTooLargeError();
     chunks.push(buffer);
   }
   const raw = Buffer.concat(chunks).toString("utf8");
   if (raw.trim() === "") return {};
-  return JSON.parse(raw) as unknown;
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    throw new Error("Invalid JSON body");
+  }
+}
+
+/** Reads the JSON body, sending 400/413 and returning undefined on error. */
+async function readBodyOrError(req: http.IncomingMessage, res: http.ServerResponse): Promise<unknown | undefined> {
+  try {
+    return await readJsonBody(req);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      sendJson(res, 413, { error: "Request body too large" });
+    } else {
+      sendJson(res, 400, { error: "Invalid JSON body" });
+    }
+    return undefined;
+  }
+}
+
+function sendMethodNotAllowed(res: http.ServerResponse, allow: string): void {
+  res.writeHead(405, { "Content-Type": "application/json; charset=utf-8", Allow: allow });
+  res.end(JSON.stringify({ error: `Method not allowed. Allowed: ${allow}` }));
 }
 
 async function serveStatic(res: http.ServerResponse, pathname: string): Promise<boolean> {
@@ -56,27 +81,34 @@ async function serveStatic(res: http.ServerResponse, pathname: string): Promise<
   return true;
 }
 
-function readFilters(body: unknown): SearchFilters | undefined {
-  if (typeof body !== "object" || body === null || !("filters" in body)) return undefined;
+function readFilters(body: unknown): { filters?: SearchFilters; error?: string } {
+  if (typeof body !== "object" || body === null || !("filters" in body)) return {};
   const raw = (body as { filters?: unknown }).filters;
-  if (typeof raw !== "object" || raw === null) return undefined;
+  if (raw === undefined || raw === null) return {};
+  if (typeof raw !== "object") return { error: "filters must be an object" };
+
   const record = raw as Record<string, unknown>;
   const filters: SearchFilters = {};
   for (const key of ["status", "locale", "category", "asOf"] as const) {
     const value = record[key];
-    if (typeof value === "string" && value.trim() !== "") filters[key] = value.trim();
+    if (value === undefined || value === null || value === "") continue;
+    if (typeof value !== "string") return { error: `filter "${key}" must be a string` };
+    const trimmed = value.trim();
+    if (key === "asOf") {
+      if (!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/.test(trimmed)) {
+        return { error: 'filter "asOf" must be an ISO date (YYYY-MM-DD)' };
+      }
+    } else if (!/^[A-Za-z0-9_-]{1,64}$/.test(trimmed)) {
+      return { error: `filter "${key}" contains invalid characters` };
+    }
+    filters[key] = trimmed;
   }
-  return Object.keys(filters).length > 0 ? filters : undefined;
+  return { filters: Object.keys(filters).length > 0 ? filters : undefined };
 }
 
 async function handleSearch(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-  let body: unknown;
-  try {
-    body = await readJsonBody(req);
-  } catch (error) {
-    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid JSON body" });
-    return;
-  }
+  const body = await readBodyOrError(req, res);
+  if (body === undefined) return;
 
   const query =
     typeof body === "object" && body !== null && "query" in body
@@ -87,7 +119,11 @@ async function handleSearch(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
-  const filters = readFilters(body);
+  const { filters, error: filterError } = readFilters(body);
+  if (filterError) {
+    sendJson(res, 400, { error: filterError });
+    return;
+  }
 
   let retriever: Retriever = "dense";
   if (typeof body === "object" && body !== null && "retriever" in body) {
@@ -124,13 +160,8 @@ async function handleEvalQueries(res: http.ServerResponse): Promise<void> {
 }
 
 async function handleEval(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-  let body: unknown;
-  try {
-    body = await readJsonBody(req);
-  } catch (error) {
-    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid JSON body" });
-    return;
-  }
+  const body = await readBodyOrError(req, res);
+  if (body === undefined) return;
 
   let topK = config.search.topK;
   if (typeof body === "object" && body !== null && "topK" in body) {
@@ -170,13 +201,8 @@ function mapSources(sources: ContextSource[]) {
 }
 
 async function handleAnswer(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-  let body: unknown;
-  try {
-    body = await readJsonBody(req);
-  } catch (error) {
-    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid JSON body" });
-    return;
-  }
+  const body = await readBodyOrError(req, res);
+  if (body === undefined) return;
 
   const query =
     typeof body === "object" && body !== null && "query" in body
@@ -187,7 +213,11 @@ async function handleAnswer(req: http.IncomingMessage, res: http.ServerResponse)
     return;
   }
 
-  const filters = readFilters(body);
+  const { filters, error: filterError } = readFilters(body);
+  if (filterError) {
+    sendJson(res, 400, { error: filterError });
+    return;
+  }
 
   try {
     const result = await answerQuestion(query, { filters });
@@ -205,13 +235,8 @@ async function handleAnswer(req: http.IncomingMessage, res: http.ServerResponse)
 }
 
 async function handleAgentic(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-  let body: unknown;
-  try {
-    body = await readJsonBody(req);
-  } catch (error) {
-    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid JSON body" });
-    return;
-  }
+  const body = await readBodyOrError(req, res);
+  if (body === undefined) return;
 
   const query =
     typeof body === "object" && body !== null && "query" in body
@@ -222,7 +247,11 @@ async function handleAgentic(req: http.IncomingMessage, res: http.ServerResponse
     return;
   }
 
-  const filters = readFilters(body);
+  const { filters, error: filterError } = readFilters(body);
+  if (filterError) {
+    sendJson(res, 400, { error: filterError });
+    return;
+  }
   const forceSearch =
     typeof body === "object" &&
     body !== null &&
@@ -275,13 +304,8 @@ async function readQuery(body: unknown): Promise<string | undefined> {
 }
 
 async function handleCag(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-  let body: unknown;
-  try {
-    body = await readJsonBody(req);
-  } catch (error) {
-    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid JSON body" });
-    return;
-  }
+  const body = await readBodyOrError(req, res);
+  if (body === undefined) return;
 
   const query = await readQuery(body);
   if (!query) {
@@ -316,13 +340,8 @@ async function handleCag(req: http.IncomingMessage, res: http.ServerResponse): P
 }
 
 async function handleCompare(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-  let body: unknown;
-  try {
-    body = await readJsonBody(req);
-  } catch (error) {
-    sendJson(res, 400, { error: error instanceof Error ? error.message : "Invalid JSON body" });
-    return;
-  }
+  const body = await readBodyOrError(req, res);
+  if (body === undefined) return;
 
   const query = await readQuery(body);
   if (!query) {
@@ -330,7 +349,11 @@ async function handleCompare(req: http.IncomingMessage, res: http.ServerResponse
     return;
   }
 
-  const filters = readFilters(body);
+  const { filters, error: filterError } = readFilters(body);
+  if (filterError) {
+    sendJson(res, 400, { error: filterError });
+    return;
+  }
 
   try {
     // Sequential so the two latencies/caches are not distorted by contention.
@@ -430,20 +453,34 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "GET") {
     void serveStatic(res, url.pathname).then((handled) => {
-      if (!handled) {
-        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Not found");
+      if (handled) return;
+      if (url.pathname.startsWith("/api/")) {
+        sendMethodNotAllowed(res, "GET, POST");
+        return;
       }
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Not found");
     });
     return;
   }
 
-  res.writeHead(405, { "Content-Type": "text/plain; charset=utf-8" });
-  res.end("Method not allowed");
+  if (req.method === "POST") {
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Not found");
+    return;
+  }
+
+  sendMethodNotAllowed(res, "GET, POST");
 });
 
-server.listen(config.server.port, () => {
-  console.log(`RAG demo UI:  http://localhost:${config.server.port}`);
+server.listen(config.server.port, config.server.host, () => {
+  console.log(`RAG demo UI:  http://${config.server.host}:${config.server.port}`);
   console.log(`Embeddings:   ${config.embeddings.provider} / ${config.embeddings.model}`);
   console.log(`Qdrant:       ${config.qdrant.url} -> ${config.qdrant.collection}`);
+  if (config.cag.prewarm) {
+    console.log("CAG:          prewarming prompt cache...");
+    cagPrewarm()
+      .then((result) => console.log(`CAG:          cache warmed (~${result.contextTokens} tokens)`))
+      .catch((error) => console.warn(`CAG:          prewarm failed (${error instanceof Error ? error.message : error})`));
+  }
 });

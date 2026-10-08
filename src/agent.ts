@@ -89,7 +89,12 @@ async function planNext(question: string, sources: ContextSource[], forceTool: b
   ) as { arguments?: string } | undefined;
   if (!call || typeof call.arguments !== "string") return null;
 
-  const args = JSON.parse(call.arguments) as { query?: unknown; category?: unknown };
+  let args: { query?: unknown; category?: unknown };
+  try {
+    args = JSON.parse(call.arguments) as { query?: unknown; category?: unknown };
+  } catch {
+    return null; // malformed tool arguments: stop instead of aborting the request
+  }
   const query = typeof args.query === "string" ? args.query.trim() : "";
   const category = typeof args.category === "string" && args.category.trim() !== "" ? args.category.trim() : null;
   if (query === "") return null;
@@ -115,12 +120,16 @@ export async function answerQuestionAgentic(
   const searches: AgentSearchStep[] = [];
 
   const gather = async (q: string, category: string | null): Promise<number> => {
-    const filters: SearchFilters = { ...baseFilters, ...(category ? { category } : {}) };
+    // The application owns the base filters; the agent may only set a category
+    // when the application did not already constrain one. status/locale/asOf
+    // can never be overridden by the model.
+    const narrowed: SearchFilters = { ...baseFilters };
+    if (!narrowed.category && category) narrowed.category = category;
     const results: SearchResult[] = await search({
       query: q,
       limit: config.agent.perSearch,
       retriever: "rerank",
-      filters,
+      filters: narrowed,
     });
     let added = 0;
     for (const result of results) {
@@ -137,6 +146,7 @@ export async function answerQuestionAgentic(
   const initialChunks = chunks.size;
 
   for (let step = 0; step < config.agent.maxExtraSearches; step++) {
+    if (chunks.size >= config.agent.maxChunks) break; // pool full: no point searching further
     const sources = buildContext([...chunks.values()]);
     const call = await planNext(question, sources, forceSearch && step === 0);
     if (!call) break;

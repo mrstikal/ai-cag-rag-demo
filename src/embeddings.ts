@@ -49,6 +49,11 @@ class OpenAIEmbedder implements Embedder {
       const ordered = [...response.data].sort((a, b) => a.index - b.index);
       for (const item of ordered) vectors.push(item.embedding);
     }
+    for (const vector of vectors) {
+      if (vector.length !== this.dimensions) {
+        throw new Error(`Embedding dimension mismatch: expected ${this.dimensions}, got ${vector.length}`);
+      }
+    }
     return vectors;
   }
 }
@@ -83,7 +88,7 @@ class MockEmbedder implements Embedder {
 
   private vectorize(text: string): number[] {
     const vector = new Array<number>(this.dimensions).fill(0);
-    const tokens = text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+    const tokens = text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
     for (const token of tokens) {
       const hash = fnv1a(token);
       const index = hash % this.dimensions;

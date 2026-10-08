@@ -187,8 +187,32 @@ class OpenAIGenerator implements AnswerGenerator {
       },
     });
 
-    return { answer: JSON.parse(response.output_text) as RagAnswer, usage: usageFrom(response) };
+    return { answer: parseStructuredAnswer(response.output_text), usage: usageFrom(response) };
   }
+}
+
+/** Guarded parse + shape validation of a structured-output answer. */
+export function parseStructuredAnswer(text: string): RagAnswer {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("Model did not return valid JSON");
+  }
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error("Model returned a non-object answer");
+  }
+  const record = parsed as { status?: unknown; answer?: unknown; citations?: unknown };
+  if (record.status !== "answered" && record.status !== "insufficient") {
+    throw new Error(`Model returned an invalid status: ${String(record.status)}`);
+  }
+  if (typeof record.answer !== "string") {
+    throw new Error("Model returned a non-string answer");
+  }
+  if (!Array.isArray(record.citations) || record.citations.some((c) => typeof c !== "string")) {
+    throw new Error("Model returned an invalid citations list");
+  }
+  return { status: record.status, answer: record.answer, citations: record.citations as string[] };
 }
 
 let generator: AnswerGenerator | undefined;
@@ -197,24 +221,44 @@ export function getGenerator(): AnswerGenerator {
   return (generator ??= new OpenAIGenerator());
 }
 
-export function validateCitations(answer: RagAnswer, allowedSources: Set<string>, markerPrefix = "S"): void {
+/** Any citation-shaped marker like [S1] or [D17], regardless of prefix. */
+const CITATION_MARKER = /\[([A-Za-z]{1,3}\d+)\]/g;
+
+/**
+ * Non-throwing citation check. Returns an error message, or null if valid.
+ * - every entry of `citations` must be an allowed source
+ * - every citation-shaped inline marker (any prefix) must be an allowed source
+ * - an "answered" response must have at least one inline marker and a non-empty citations list
+ */
+export function checkCitations(answer: RagAnswer, allowedSources: Set<string>): string | null {
+  if (typeof answer.answer !== "string" || !Array.isArray(answer.citations)) {
+    return "Malformed answer object";
+  }
   for (const citation of answer.citations) {
-    if (!allowedSources.has(citation)) {
-      throw new Error(`Invalid citation: ${citation}`);
+    if (typeof citation !== "string" || !allowedSources.has(citation)) {
+      return `Invalid citation: ${String(citation)}`;
     }
   }
 
-  const markerRegex = new RegExp(`\\[(${markerPrefix}\\d+)\\]`, "g");
-  const markers = [...answer.answer.matchAll(markerRegex)].map((match) => match[1] ?? "");
+  const markers = [...answer.answer.matchAll(CITATION_MARKER)].map((match) => match[1] ?? "");
   for (const marker of markers) {
     if (!allowedSources.has(marker)) {
-      throw new Error(`Unknown source marker: ${marker}`);
+      return `Unknown source marker: ${marker}`;
     }
   }
 
   if (answer.status === "answered" && markers.length === 0) {
-    throw new Error(`Answered response without citations: "${answer.answer.slice(0, 240)}"`);
+    return `Answered response without citations: "${answer.answer.slice(0, 240)}"`;
   }
+  if (answer.status === "answered" && answer.citations.length === 0) {
+    return "Answered response with an empty citations list";
+  }
+  return null;
+}
+
+export function validateCitations(answer: RagAnswer, allowedSources: Set<string>, _markerPrefix = "S"): void {
+  const problem = checkCitations(answer, allowedSources);
+  if (problem) throw new Error(problem);
 }
 
 export interface AnswerOptions {
@@ -238,7 +282,7 @@ export async function answerQuestion(question: string, options: AnswerOptions = 
   const retrievalMs = Date.now() - start;
 
   const sources = buildContext(results.map(toRetrievedChunk));
-  const gen = getGenerator();
+  const modelName = `openai:${config.generation.model}`;
 
   if (sources.length === 0) {
     return {
@@ -246,12 +290,13 @@ export async function answerQuestion(question: string, options: AnswerOptions = 
       answer: "The knowledge base does not contain enough information to answer this.",
       citations: [],
       sources: [],
-      model: gen.name,
+      model: modelName,
       usage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0 },
       timings: { retrievalMs, generationMs: 0, totalMs: Date.now() - start },
     };
   }
 
+  const gen = getGenerator();
   const generationStart = Date.now();
   const { answer, usage } = await gen.generate(question, sources);
   const generationMs = Date.now() - generationStart;

@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import matter from "gray-matter";
 import { config } from "./config";
 import {
+  parseStructuredAnswer,
   usageFrom,
   validateCitations,
   type RagAnswer,
@@ -25,6 +26,8 @@ export interface CanonicalKnowledgeBase {
   systemPrefix: string;
   documents: CagSource[];
   approxTokens: number;
+  /** Signature of the KB files, used to rebuild when the source changes. */
+  fingerprint: string;
 }
 
 export interface CagResult extends RagAnswer {
@@ -55,17 +58,34 @@ function asString(value: unknown): string {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : "";
 }
 
+function xmlEscape(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 let cachedKb: CanonicalKnowledgeBase | undefined;
 
 /**
  * Build one deterministic, canonical representation of the whole KB. Documents
- * are ordered by document_id so the prefix is byte-stable across requests,
- * which is what makes prompt caching effective.
+ * are ordered by document_id (code-point order, host-locale independent) and
+ * serialised with escaping, so the prefix is byte-stable across requests, which
+ * is what makes prompt caching effective. Rebuilt automatically when the KB
+ * files change (fingerprint of names + mtimes + sizes).
  */
 export async function buildCanonicalKnowledgeBase(): Promise<CanonicalKnowledgeBase> {
-  if (cachedKb) return cachedKb;
+  const entries = (await fs.readdir(config.kb.sourceDir)).filter((name) => name.endsWith(".md")).sort();
+  const stats = await Promise.all(
+    entries.map(async (name) => {
+      const stat = await fs.stat(path.join(config.kb.sourceDir, name));
+      return `${name}:${stat.mtimeMs}:${stat.size}`;
+    }),
+  );
+  const fingerprint = stats.join("|");
+  if (cachedKb && cachedKb.fingerprint === fingerprint) return cachedKb;
 
-  const entries = (await fs.readdir(config.kb.sourceDir)).filter((name) => name.endsWith(".md"));
   const docs: { documentId: string; version: string; title: string; status: string; text: string }[] = [];
 
   for (const filename of entries) {
@@ -81,7 +101,8 @@ export async function buildCanonicalKnowledgeBase(): Promise<CanonicalKnowledgeB
     });
   }
 
-  docs.sort((a, b) => a.documentId.localeCompare(b.documentId));
+  // Code-point sort: independent of host locale/ICU, unlike localeCompare.
+  docs.sort((a, b) => (a.documentId < b.documentId ? -1 : a.documentId > b.documentId ? 1 : 0));
 
   const documents: CagSource[] = docs.map((doc, index) => ({
     sourceId: `D${index + 1}`,
@@ -94,11 +115,11 @@ export async function buildCanonicalKnowledgeBase(): Promise<CanonicalKnowledgeB
 
   const blocks = documents.map(
     (doc) =>
-      `<DOCUMENT source="${doc.sourceId}" id="${doc.documentId}" version="${doc.version}" title="${doc.title}" status="${doc.status}">\n${doc.text}\n</DOCUMENT>`,
+      `<DOCUMENT source="${xmlEscape(doc.sourceId)}" id="${xmlEscape(doc.documentId)}" version="${xmlEscape(doc.version)}" title="${xmlEscape(doc.title)}" status="${xmlEscape(doc.status)}">\n${xmlEscape(doc.text)}\n</DOCUMENT>`,
   );
 
   const systemPrefix = `${CAG_SYSTEM_PROMPT}\n\nKNOWLEDGE BASE\n\n${blocks.join("\n\n")}`;
-  cachedKb = { systemPrefix, documents, approxTokens: Math.ceil(systemPrefix.length / 4) };
+  cachedKb = { systemPrefix, documents, approxTokens: Math.ceil(systemPrefix.length / 4), fingerprint };
   return cachedKb;
 }
 
@@ -153,7 +174,7 @@ export async function cagAnswer(question: string): Promise<CagResult> {
   });
   const generationMs = Date.now() - generationStart;
 
-  const answer = JSON.parse(response.output_text) as RagAnswer;
+  const answer = parseStructuredAnswer(response.output_text);
   validateCitations(answer, new Set(sourceIds), "D");
 
   const byId = new Map(kb.documents.map((doc) => [doc.sourceId, doc]));

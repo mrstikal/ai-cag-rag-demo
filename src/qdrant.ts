@@ -64,9 +64,9 @@ export async function getCollectionVectorSize(
   if (typeof vectors === "object" && "size" in vectors && typeof vectors.size === "number") {
     return vectors.size;
   }
-  const named = Object.values(vectors as Record<string, { size?: number }>);
-  const first = named[0];
-  return first && typeof first.size === "number" ? first.size : undefined;
+  const named = vectors as Record<string, { size?: number }>;
+  const preferred = named[DENSE_VECTOR] ?? Object.values(named)[0];
+  return preferred && typeof preferred.size === "number" ? preferred.size : undefined;
 }
 
 export async function createCollection(
@@ -131,17 +131,20 @@ export async function upsertPoints(
       vector: point.vector as unknown as Schemas["VectorStruct"],
       payload: point.payload as unknown as Record<string, unknown>,
     }));
-    // Upsert overwrites a point with the same id, so re-seeding is idempotent.
+    // Upsert overwrites points with the same id; seed purges stale ones first.
     await client.upsert(name, { wait: true, points: batch });
   }
 }
 
 function toHits(points: { id: string | number; score: number; payload?: unknown }[]): SearchHit[] {
-  return points.map((point) => ({
-    id: point.id,
-    score: point.score,
-    payload: point.payload as unknown as ChunkPayload,
-  }));
+  const hits: SearchHit[] = [];
+  for (const point of points) {
+    const payload = point.payload as unknown as ChunkPayload | null | undefined;
+    // Skip malformed points rather than crashing on an unchecked cast.
+    if (!payload || typeof payload.document_id !== "string") continue;
+    hits.push({ id: point.id, score: point.score, payload });
+  }
+  return hits;
 }
 
 /** Dense cosine search over the named `dense` vector. */
@@ -195,18 +198,20 @@ export async function hybridSearchPoints(
   filter?: Schemas["Filter"],
   prefetchLimit = 20,
 ): Promise<SearchHit[]> {
+  // Qdrant requires prefetch limit >= final limit.
+  const pool = Math.max(prefetchLimit, limit);
   const response = await client.query(name, {
     prefetch: [
       {
         query: denseVector,
         using: DENSE_VECTOR,
-        limit: prefetchLimit,
+        limit: pool,
         ...(filter ? { filter } : {}),
       },
       {
         query: { text: queryText, model: BM25_MODEL },
         using: BM25_VECTOR,
-        limit: prefetchLimit,
+        limit: pool,
         ...(filter ? { filter } : {}),
       },
     ],
@@ -221,4 +226,37 @@ export async function hybridSearchPoints(
 export async function countPoints(client: QdrantClient, name: string): Promise<number> {
   const result = await client.count(name, { exact: true });
   return result.count;
+}
+
+/** Distinct document_id values currently indexed (used to purge stale points). */
+export async function listDocumentIds(client: QdrantClient, name: string): Promise<string[]> {
+  const ids = new Set<string>();
+  let offset: string | number | undefined;
+  for (;;) {
+    const page = await client.scroll(name, {
+      limit: 512,
+      with_payload: ["document_id"],
+      with_vector: false,
+      offset,
+    });
+    for (const point of page.points) {
+      const documentId = (point.payload as { document_id?: unknown } | null)?.document_id;
+      if (typeof documentId === "string") ids.add(documentId);
+    }
+    const next = page.next_page_offset;
+    if (next === undefined || next === null || typeof next === "object" || page.points.length === 0) break;
+    offset = next;
+  }
+  return [...ids];
+}
+
+export async function deletePointsByDocument(
+  client: QdrantClient,
+  name: string,
+  documentId: string,
+): Promise<void> {
+  await client.delete(name, {
+    wait: true,
+    filter: { must: [{ key: "document_id", match: { value: documentId } }] },
+  });
 }

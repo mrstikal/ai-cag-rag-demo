@@ -1,9 +1,12 @@
 {
   "name": "rag-demo",
   "version": "1.0.0",
-  "description": "RAG demo: dense retrieval over a markdown knowledge base using Qdrant",
-  "main": "src/seed.ts",
+  "description": "RAG/CAG demo over a markdown knowledge base using Qdrant",
   "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "seed": "tsx src/seed.ts",
     "search": "tsx src/search.ts",
@@ -21,11 +24,11 @@
     "dotenv": "^18.0.6",
     "gray-matter": "^4.0.3",
     "openai": "^7.30.0",
-    "tsx": "^4.23.15",
-    "typescript": "^7.0.2",
     "uuid": "^14.0.2"
   },
   "devDependencies": {
-    "@types/node": "^26.6.4"
+    "@types/node": "^26.6.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }

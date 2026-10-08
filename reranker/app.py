@@ -8,8 +8,10 @@ Run:
     python3 reranker/app.py
 
 Environment:
-    RERANKER_MODEL   default BAAI/bge-reranker-v2-m3 (multilingual)
-    RERANKER_PORT    default 8080
+    RERANKER_MODEL         default BAAI/bge-reranker-v2-m3 (multilingual)
+    RERANKER_HOST          default 127.0.0.1 (local only)
+    RERANKER_PORT          default 8080
+    RERANK_MAX_DOCUMENTS   default 200 (reject larger batches)
 
 API:
     GET  /health  -> {"status": "ok", "model": "..."}
@@ -20,15 +22,21 @@ API:
 import json
 import math
 import os
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 
 from sentence_transformers import CrossEncoder
 
 MODEL = os.environ.get("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")
+HOST = os.environ.get("RERANKER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("RERANKER_PORT", "8080"))
+MAX_DOCUMENTS = int(os.environ.get("RERANK_MAX_DOCUMENTS", "200"))
 
 print(f"loading reranker model: {MODEL}", flush=True)
 model = CrossEncoder(MODEL)
+# torch inference is not guaranteed thread-safe across versions; serialize it.
+model_lock = threading.Lock()
 print("model ready", flush=True)
 
 
@@ -48,31 +56,38 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _path(self) -> str:
+        return urlsplit(self.path).path
+
     def do_GET(self) -> None:  # noqa: N802
-        if self.path == "/health":
+        if self._path() == "/health":
             self._send(200, {"status": "ok", "model": MODEL})
         else:
             self._send(404, {"error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path != "/rerank":
+        if self._path() != "/rerank":
             self._send(404, {"error": "not found"})
             return
 
-        length = int(self.headers.get("Content-Length", "0"))
         try:
+            length = int(self.headers.get("Content-Length", "0"))
             data = json.loads(self.rfile.read(length) or b"{}")
             query = data["query"]
             documents = data["documents"]
             if not isinstance(query, str) or not isinstance(documents, list):
                 raise ValueError("query must be a string and documents a list")
+            if len(documents) > MAX_DOCUMENTS:
+                self._send(413, {"error": f"too many documents (max {MAX_DOCUMENTS})"})
+                return
         except Exception as error:  # noqa: BLE001
             self._send(400, {"error": f"bad request: {error}"})
             return
 
         try:
             pairs = [[query, str(document)] for document in documents]
-            raw_scores = model.predict(pairs) if pairs else []
+            with model_lock:
+                raw_scores = model.predict(pairs) if pairs else []
             results = [
                 {"index": index, "score": float(sigmoid(float(score)))}
                 for index, score in enumerate(raw_scores)
@@ -82,10 +97,16 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:  # noqa: BLE001
             self._send(500, {"error": str(error)})
 
+    def do_PUT(self) -> None:  # noqa: N802
+        self._send(405, {"error": "method not allowed"})
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        self._send(405, {"error": "method not allowed"})
+
     def log_message(self, *args: object) -> None:  # keep stdout clean
         return
 
 
 if __name__ == "__main__":
-    print(f"reranker listening on :{PORT}", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    print(f"reranker listening on {HOST}:{PORT}", flush=True)
+    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

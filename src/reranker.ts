@@ -26,7 +26,7 @@ export function rerankerInfo(): RerankerInfo {
 }
 
 function tokenize(text: string): string[] {
-  return text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 }
 
 /**
@@ -144,16 +144,25 @@ function callCohere(query: string, documents: string[]): Promise<RerankScore[]> 
 export async function rerankDocuments(query: string, documents: string[]): Promise<RerankScore[]> {
   if (documents.length === 0) return [];
 
-  switch (config.reranker.provider) {
-    case "voyage":
-      return callVoyage(query, documents);
-    case "cohere":
-      return callCohere(query, documents);
-    case "fallback":
-      return fallbackRerank(query, documents);
-    case "local":
-    default:
-      if (config.reranker.url) return callLocal(query, documents, config.reranker.url);
-      return fallbackRerank(query, documents);
+  try {
+    switch (config.reranker.provider) {
+      case "voyage":
+        return await callVoyage(query, documents);
+      case "cohere":
+        return await callCohere(query, documents);
+      case "fallback":
+        return fallbackRerank(query, documents);
+      case "local":
+      default:
+        if (config.reranker.url) return await callLocal(query, documents, config.reranker.url);
+        return fallbackRerank(query, documents);
+    }
+  } catch (error) {
+    // Graceful degradation: a misconfigured or unreachable provider must not
+    // take down retrieval/generation. Fall back to the lexical scorer.
+    console.warn(
+      `[reranker] provider "${config.reranker.provider}" failed; using lexical fallback (${error instanceof Error ? error.message : String(error)})`,
+    );
+    return fallbackRerank(query, documents);
   }
 }

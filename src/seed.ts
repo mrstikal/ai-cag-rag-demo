@@ -2,7 +2,7 @@ import "dotenv/config";
 import fs from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
-import { config } from "./config";
+import { config, ROOT_DIR } from "./config";
 import { chunkMarkdown } from "./chunker";
 import { embedTexts, getEmbedder } from "./embeddings";
 import { chunkId } from "./id";
@@ -14,8 +14,10 @@ import {
   createClient,
   createCollection,
   createPayloadIndexes,
+  deletePointsByDocument,
   DENSE_VECTOR,
   getCollectionVectorSize,
+  listDocumentIds,
   recreateCollection,
   upsertPoints,
   type ChunkPayload,
@@ -62,6 +64,7 @@ async function main(): Promise<void> {
 
   const points: Point[] = [];
   const errors: string[] = [];
+  const seenIds = new Map<string, string>();
   let documents = 0;
 
   for (const filename of files) {
@@ -71,8 +74,14 @@ async function main(): Promise<void> {
       const stats = await fs.stat(filePath);
       const { data, content } = matter(raw);
       const documentId = asString(data.id) ?? path.basename(filename, ".md");
+      const duplicate = seenIds.get(documentId);
+      if (duplicate) {
+        errors.push(`${filename}: duplicate document id "${documentId}" (also in ${duplicate})`);
+        continue;
+      }
+      seenIds.set(documentId, filename);
       const documentVersion = asString(data.version) ?? "1";
-      const sourceUri = `kb/source/${filename}`;
+      const sourceUri = path.relative(ROOT_DIR, filePath).split(path.sep).join("/");
       const updatedAt = stats.mtime.toISOString();
 
       const chunks = chunkMarkdown(content);
@@ -143,6 +152,17 @@ async function main(): Promise<void> {
   console.log("Ensuring payload indexes...");
   await createPayloadIndexes(client, config.qdrant.collection);
 
+  // Purge existing points so a reseed never leaves stale chunks behind (from
+  // removed or shrunk documents). Upsert alone only overwrites ids that are
+  // produced again, so it cannot detect deletions.
+  const existingDocumentIds = await listDocumentIds(client, config.qdrant.collection);
+  if (existingDocumentIds.length > 0) {
+    console.log(`Purging ${existingDocumentIds.length} existing document(s)...`);
+    for (const documentId of existingDocumentIds) {
+      await deletePointsByDocument(client, config.qdrant.collection, documentId);
+    }
+  }
+
   console.log("");
   console.log(`Upserting ${points.length} points...`);
   await upsertPoints(client, config.qdrant.collection, points);
@@ -157,6 +177,7 @@ async function main(): Promise<void> {
   console.log("");
   console.log(`Collection "${config.qdrant.collection}" now holds ${total} points.`);
   console.log('Next: npm run search -- "your question"');
+  if (errors.length > 0) process.exitCode = 1;
 }
 
 main().catch((error) => {

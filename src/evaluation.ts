@@ -139,14 +139,12 @@ interface RankMetrics {
   hitAt3: number;
   hitAt5: number;
   mrr: number;
-  recallAt10: number;
-  recallAt20: number;
 }
 
-function metricsFromRanks(ranks: (number | null)[], k: number, depth: number): RankMetrics {
+function metricsFromRanks(ranks: (number | null)[], k: number): RankMetrics {
   const queries = ranks.length;
   if (queries === 0) {
-    return { queries: 0, found: 0, hitAt1: 0, hitAt3: 0, hitAt5: 0, mrr: 0, recallAt10: 0, recallAt20: 0 };
+    return { queries: 0, found: 0, hitAt1: 0, hitAt3: 0, hitAt5: 0, mrr: 0 };
   }
   const hitAt = (threshold: number): number =>
     ranks.filter((rank) => rank !== null && rank <= threshold).length / queries;
@@ -164,24 +162,45 @@ function metricsFromRanks(ranks: (number | null)[], k: number, depth: number): R
     hitAt3: hitAt(3),
     hitAt5: hitAt(5),
     mrr: reciprocalRankSum / queries,
-    recallAt10: depth >= 10 ? hitAt(10) : 0,
-    recallAt20: depth >= 20 ? hitAt(20) : 0,
   };
+}
+
+/**
+ * True document recall@k: over each query, the share of the expected documents
+ * that appear anywhere in the first k results, averaged over queries. (This is
+ * stricter than "at least one expected doc", which matters for multi-expected
+ * queries such as q04/q05.)
+ */
+function documentRecallAt(outcomes: QueryOutcome[], k: number, depth: number): number {
+  if (depth < k || outcomes.length === 0) return 0;
+  let sum = 0;
+  for (const outcome of outcomes) {
+    if (outcome.expected.length === 0) {
+      sum += 1;
+      continue;
+    }
+    const inTop = new Set(outcome.results.slice(0, k).map((result) => result.documentId));
+    sum += outcome.expected.filter((documentId) => inTop.has(documentId)).length / outcome.expected.length;
+  }
+  return sum / outcomes.length;
 }
 
 export function computeMetrics(outcomes: QueryOutcome[], k: number, depth: number): Metrics {
   const documents = metricsFromRanks(
     outcomes.map((outcome) => outcome.rank),
     k,
-    depth,
   );
-  // Chunk metrics only cover queries that declare an expectedChunk.
+  // Chunk metrics only cover queries that declare an expectedChunk. A single
+  // expected chunk makes chunk recall identical to chunk hit.
   const chunkSubset = outcomes.filter((outcome) => typeof outcome.expectedChunk === "number");
   const chunks = metricsFromRanks(
     chunkSubset.map((outcome) => outcome.chunkRank),
     k,
-    depth,
   );
+  const chunkRecallAt = (threshold: number): number => {
+    if (depth < threshold || chunks.queries === 0) return 0;
+    return chunkSubset.filter((outcome) => outcome.chunkRank !== null && outcome.chunkRank <= threshold).length / chunks.queries;
+  };
 
   return {
     queries: documents.queries,
@@ -190,16 +209,16 @@ export function computeMetrics(outcomes: QueryOutcome[], k: number, depth: numbe
     hitAt3: documents.hitAt3,
     hitAt5: documents.hitAt5,
     mrr: documents.mrr,
-    recallAt10: documents.recallAt10,
-    recallAt20: documents.recallAt20,
+    recallAt10: documentRecallAt(outcomes, 10, depth),
+    recallAt20: documentRecallAt(outcomes, 20, depth),
     chunkQueries: chunks.queries,
     chunkFound: chunks.found,
     chunkHitAt1: chunks.hitAt1,
     chunkHitAt3: chunks.hitAt3,
     chunkHitAt5: chunks.hitAt5,
     chunkMrr: chunks.mrr,
-    chunkRecallAt10: chunks.recallAt10,
-    chunkRecallAt20: chunks.recallAt20,
+    chunkRecallAt10: chunkRecallAt(10),
+    chunkRecallAt20: chunkRecallAt(20),
   };
 }
 

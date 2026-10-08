@@ -15,6 +15,24 @@ export interface Chunk {
  */
 const MAX_SECTION_CHARS = 2000;
 
+/** Hard character split for a single paragraph longer than the section cap. */
+function splitOversizedParagraph(paragraph: string, maxChars: number): string[] {
+  if (paragraph.length <= maxChars) return [paragraph];
+  const pieces: string[] = [];
+  let start = 0;
+  while (start < paragraph.length) {
+    let end = Math.min(start + maxChars, paragraph.length);
+    if (end < paragraph.length) {
+      const slice = paragraph.slice(start, end);
+      const lastBreak = Math.max(slice.lastIndexOf(" "), slice.lastIndexOf("\n"));
+      if (lastBreak > maxChars * 0.5) end = start + lastBreak;
+    }
+    pieces.push(paragraph.slice(start, end).trim());
+    start = end;
+  }
+  return pieces.filter(Boolean);
+}
+
 export function chunkMarkdown(text: string): Chunk[] {
   const normalized = text.replace(/\r\n/g, "\n").trim();
 
@@ -34,7 +52,8 @@ export function chunkMarkdown(text: string): Chunk[] {
     const paragraphs = section
       .split(/\n\s*\n/)
       .map((paragraph) => paragraph.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .flatMap((paragraph) => splitOversizedParagraph(paragraph, MAX_SECTION_CHARS));
 
     let current = "";
 

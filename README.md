@@ -269,7 +269,7 @@ rag-demo/
 | **npm** | ships with Node; dependencies in `package.json`. |
 | **Docker + Docker Compose** | to run Qdrant. `docker compose up -d`. |
 | **Qdrant** | latest, via `docker-compose.yml`. REST `6333`, gRPC `6334`, dashboard `http://localhost:6333/dashboard`. |
-| **OpenAI API key** | used for embeddings (`text-embedding-3-small`, 1536-dim) **and** generation (`gpt-4o-mini`). |
+| **OpenAI API key** | used for embeddings (`text-embedding-3-small`, 1536-dim) **and** generation (`gpt-5.6-terra`). |
 
 ### Optional
 
@@ -277,7 +277,7 @@ rag-demo/
 |---|---|
 | **Voyage API key** | reranker provider `voyage` (`rerank-3-lite`). |
 | **Cohere API key** | reranker provider `cohere` (`rerank-v4.0-fast`). |
-| **Python 3.10+** | only for the self-hosted cross-encoder reranker (`reranker/app.py`), which needs `torch` (CPU) + `sentence-transformers` and downloads `BAAI/bge-reranker-v2-m3` (~2.3 GB). CPU inference is slow (~15 min for a full UI eval); an API provider is much faster. |
+| **Python 3.10+** | only for the self-hosted cross-encoder reranker (`reranker/app.py`), which needs `torch` (CPU) + `sentence-transformers` and downloads `BAAI/bge-reranker-v2-m3` (~2.3 GB). CPU inference is slow (~15 min for a full UI eval); an API provider is much faster. If a configured reranker provider is unreachable, retrieval falls back to the built-in lexical scorer with a warning, so the pipeline stays runnable. |
 
 The pipeline can run **without any reranker** (`RERANKER_PROVIDER=fallback`) and **without an OpenAI
 key** for retrieval only (`EMBEDDINGS_PROVIDER=mock`), which is useful for offline smoke tests.
@@ -324,18 +324,21 @@ npm run web      # http://localhost:3000
 | `EVAL_CANDIDATE_DEPTH` | `20` | retrieval depth for Recall@10/@20 |
 | `RERANKER_PROVIDER` | `local` | `local` \| `voyage` \| `cohere` \| `fallback` |
 | `RERANKER_URL` | `http://localhost:8080` | local cross-encoder service |
+| `RERANKER_HOST` | `127.0.0.1` | bind address of the Python reranker service |
 | `RERANKER_MODEL` | `BAAI/bge-reranker-v2-m3` | local reranker model |
 | `RERANK_CANDIDATES` | `20` | candidates fetched per branch before the union + rerank |
 | `RERANK_TIMEOUT_MS` | `120000` | reranker request timeout |
+| `RERANK_MAX_DOCUMENTS` | `200` | max documents per rerank request (Python service) |
 | `VOYAGE_API_KEY` / `VOYAGE_BASE_URL` / `VOYAGE_RERANK_MODEL` | – / `https://api.voyageai.com` / `rerank-3-lite` | Voyage reranker |
 | `COHERE_API_KEY` / `COHERE_BASE_URL` / `COHERE_RERANK_MODEL` | – / `https://api.cohere.com` / `rerank-v4.0-fast` | Cohere reranker |
 | `GENERATION_MODEL` | `gpt-5.6-terra` | answer generation model (used by RAG, CAG and agentic) |
 | `GENERATION_TOP_K` | `5` | chunks passed to the generator |
 | `CAG_MODEL` | = `GENERATION_MODEL` | CAG generation model (keep equal to `GENERATION_MODEL` for a fair comparison) |
-| `CAG_PREWARM` | `false` | best-effort cache warm-up on demand |
+| `CAG_PREWARM` | `false` | best-effort cache warm-up on startup/on demand |
 | `AGENT_MAX_SEARCHES` | `2` | max extra `search_kb` calls |
 | `AGENT_MAX_CHUNKS` | `12` | max unique chunks accumulated |
 | `AGENT_SEARCH_RESULTS` | `5` | results per agent search |
+| `HOST` | `127.0.0.1` | web UI/API bind address |
 | `PORT` | `3000` | web UI / API port |
 
 ---
@@ -400,7 +403,9 @@ npm run eval -- --out eval/results/my-run.json    # save the report
 npm run eval -- --file eval/queries.json          # custom eval set
 ```
 Reports per-mode **Document/Chunk Hit@1/3/5, MRR@k, Recall@10/@20** plus a per-query rank comparison
-table and a miss list. The frozen single-retriever baseline lives in `eval/results/dense-step1.json`.
+table and a miss list. Document Recall@10/@20 is the true recall over the expected document set (share
+of expected documents present in the top 10/20, averaged per query), not an any-hit indicator. The
+frozen single-retriever baseline lives in `eval/results/dense-step1.json`.
 
 ### Generation evaluation
 

@@ -44,22 +44,70 @@
       </div>
 
       <nav class="tabs" role="tablist" aria-label="Sections">
-        <button class="tab is-active" type="button" role="tab" data-tab="search" aria-selected="true">
+        <button
+          class="tab is-active"
+          type="button"
+          role="tab"
+          id="tab-search"
+          aria-controls="panel-search"
+          data-tab="search"
+          aria-selected="true"
+        >
           Search
         </button>
-        <button class="tab" type="button" role="tab" data-tab="answer" aria-selected="false">
+        <button
+          class="tab"
+          type="button"
+          role="tab"
+          id="tab-answer"
+          aria-controls="panel-answer"
+          data-tab="answer"
+          aria-selected="false"
+        >
           RAG answer
         </button>
-        <button class="tab" type="button" role="tab" data-tab="cag" aria-selected="false">
+        <button
+          class="tab"
+          type="button"
+          role="tab"
+          id="tab-cag"
+          aria-controls="panel-cag"
+          data-tab="cag"
+          aria-selected="false"
+        >
           CAG answer
         </button>
-        <button class="tab" type="button" role="tab" data-tab="agentic" aria-selected="false">
+        <button
+          class="tab"
+          type="button"
+          role="tab"
+          id="tab-agentic"
+          aria-controls="panel-agentic"
+          data-tab="agentic"
+          aria-selected="false"
+        >
           Agentic
         </button>
-        <button class="tab" type="button" role="tab" data-tab="compare" aria-selected="false">
+        <button
+          class="tab"
+          type="button"
+          role="tab"
+          id="tab-compare"
+          aria-controls="panel-compare"
+          data-tab="compare"
+          aria-selected="false"
+        >
           Compare
         </button>
-        <button class="tab" type="button" role="tab" data-tab="eval" aria-selected="false">
+        <button
+          class="tab"
+          type="button"
+          role="tab"
+          id="tab-eval"
+          aria-controls="panel-eval"
+          data-tab="eval"
+          aria-selected="false"
+        >
           Eval
         </button>
       </nav>
@@ -139,7 +187,7 @@
         </div>
       </section>
 
-      <section class="panel" id="panel-answer" role="tabpanel" hidden>
+      <section class="panel" id="panel-answer" role="tabpanel" aria-labelledby="tab-answer" hidden>
         <h1 class="page-title">Answer</h1>
 
         <form id="answer-form" class="search-form" autocomplete="off">
@@ -171,7 +219,7 @@
         </div>
       </section>
 
-      <section class="panel" id="panel-cag" role="tabpanel" hidden>
+      <section class="panel" id="panel-cag" role="tabpanel" aria-labelledby="tab-cag" hidden>
         <h1 class="page-title">CAG answer</h1>
         <p class="muted cag-note">
           Cache-Augmented Generation: no retrieval at query time — the entire knowledge base travels in a stable
@@ -207,7 +255,7 @@
         </div>
       </section>
 
-      <section class="panel" id="panel-eval" role="tabpanel" hidden>
+      <section class="panel" id="panel-eval" role="tabpanel" aria-labelledby="tab-eval" hidden>
         <h1 class="page-title">Eval</h1>
 
         <div class="eval-help">
@@ -288,7 +336,7 @@
         </div>
       </section>
 
-      <section class="panel" id="panel-agentic" role="tabpanel" hidden>
+      <section class="panel" id="panel-agentic" role="tabpanel" aria-labelledby="tab-agentic" hidden>
         <h1 class="page-title">Agentic answer</h1>
 
         <form id="agentic-form" class="search-form" autocomplete="off">
@@ -321,7 +369,7 @@
         </div>
       </section>
 
-      <section class="panel" id="panel-compare" role="tabpanel" hidden>
+      <section class="panel" id="panel-compare" role="tabpanel" aria-labelledby="tab-compare" hidden>
         <h1 class="page-title">Compare RAG vs CAG</h1>
         <p class="muted cag-note">
           The same question through both paths, with the same generation model. RAG retrieves top-5 chunks; CAG answers

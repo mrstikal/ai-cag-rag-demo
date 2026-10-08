@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config, ROOT_DIR } from "./config";
-import { answerQuestion, validateCitations } from "./generation";
+import { answerQuestion, checkCitations } from "./generation";
 
 export interface GenQuestion {
   id: string;
@@ -41,6 +41,7 @@ export interface GenMetrics {
   unanswerableCorrect: number;
   citationValid: number;
   expectedSourceHit: number;
+  factsCorrect: number;
   errors: number;
 }
 
@@ -66,14 +67,20 @@ export async function loadGenerationQuestions(file: string = DEFAULT_GEN_FILE): 
 function computeMetrics(outcomes: GenOutcome[]): GenMetrics {
   const answerable = outcomes.filter((outcome) => outcome.answerable);
   const unanswerable = outcomes.filter((outcome) => !outcome.answerable);
+  // "Answerable correct" requires an answered status, the expected source cited,
+  // and the expected facts present.
+  const answerableCorrect = answerable.filter(
+    (outcome) => outcome.status === "answered" && outcome.expectedSourceHit === true && outcome.factsOk === true,
+  ).length;
   return {
     total: outcomes.length,
     answerableTotal: answerable.length,
-    answerableCorrect: answerable.filter((outcome) => outcome.status === "answered" && outcome.expectedSourceHit === true).length,
+    answerableCorrect,
     unanswerableTotal: unanswerable.length,
     unanswerableCorrect: unanswerable.filter((outcome) => outcome.status === "insufficient").length,
     citationValid: outcomes.filter((outcome) => outcome.citationValid).length,
     expectedSourceHit: answerable.filter((outcome) => outcome.expectedSourceHit === true).length,
+    factsCorrect: answerable.filter((outcome) => outcome.factsOk === true).length,
     errors: outcomes.filter((outcome) => outcome.status === "error").length,
   };
 }
@@ -88,19 +95,16 @@ export async function runGenerationEval(file: string = DEFAULT_GEN_FILE): Promis
     try {
       const result = await answerQuestion(item.question);
       const bySource = new Map(result.sources.map((source) => [source.sourceId, source.chunk.documentId]));
+      const inlineMarkers = [...result.answer.matchAll(/\[([A-Za-z]{1,3}\d+)\]/g)].map((match) => match[1] ?? "");
+      const referenced = [...new Set([...result.citations, ...inlineMarkers])];
       const citedDocuments = [
-        ...new Set(result.citations.map((citation) => bySource.get(citation)).filter((doc): doc is string => Boolean(doc))),
+        ...new Set(referenced.map((citation) => bySource.get(citation)).filter((doc): doc is string => Boolean(doc))),
       ];
       const expectedSourceHit = item.answerable ? expectedSources.every((doc) => citedDocuments.includes(doc)) : null;
       const matchedFacts = expectedFacts.filter((fact) => result.answer.toLowerCase().includes(fact.toLowerCase()));
       const factsOk = item.answerable ? matchedFacts.length === expectedFacts.length : null;
 
-      let citationValid = true;
-      try {
-        validateCitations(result, new Set(result.sources.map((source) => source.sourceId)));
-      } catch {
-        citationValid = false;
-      }
+      const citationValid = checkCitations(result, new Set(result.sources.map((source) => source.sourceId))) === null;
 
       outcomes.push({
         id: item.id,
